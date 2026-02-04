@@ -23,8 +23,8 @@ model = load_model()
 
 with st.sidebar:
     st.header("Input Parameters")
-    options = ["Most preferred crop", "Top 5 crop"]
-    selection = st.pills("Select what you want", options)
+    choice = st.radio("Preferred version", ["Most preferred crop", "Top 5 crop"])
     
+
 
 
