@@ -1,6 +1,7 @@
 import streamlit as st
 import joblib
 import os
+from datetime import datetime
 
 st.set_page_config(page_title="Crop Advisor", page_icon="🌱")
 st.title("Crop Recommendation System")
@@ -20,12 +21,15 @@ def load_model():
         return None
 
 model = load_model()
+# fetching season
+current_month = datetime.now().strftime("%B")
 
 with st.sidebar:
     st.header("Input Parameters")
     choice = st.radio("Preferred version", ["Most preferred crop", "Top 5 crop"])
     
     
+
 
 
 
