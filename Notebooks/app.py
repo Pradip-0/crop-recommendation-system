@@ -21,7 +21,10 @@ def load_model():
 
 model = load_model()
 
-# Use the sidebar correctly
 with st.sidebar:
     st.header("Input Parameters")
+    options = ["Most preferred crop", "Top 5 crop"]
+    selection = st.pills("Select what you want", options)
+    
+
 
