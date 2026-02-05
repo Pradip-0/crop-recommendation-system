@@ -123,24 +123,7 @@ state_coords = {
     'Uttar Pradesh': (26.84, 80.94), 'Uttarakhand': (30.06, 79.01),
     'West Bengal': (22.98, 87.85)
 }
-# Soil health data (N, P, K)
-@st.cache_data
-def fetch_soilgrids_data(lat, lon):
-    url = f"https://rest.isric.org{lat}&lon={lon}&property=nitrogen&property=soc&depth=0-5cm&value=mean"
-    try:
-        response = requests.get(url, timeout=12)
-        if response.status_code == 200:
-            data = response.json()
-            layers = data.get('properties', {}).get('layers', [])
-            stats = {layer['name']: layer['depths'][0]['values']['mean'] for layer in layers}
-            n_raw = stats.get('nitrogen', 15) 
-            n_final = n_raw * 10
-            p_final = n_final * 0.65
-            k_final = n_final * 0.45
-            return {"N": round(n_final, 1), "P": round(p_final, 1), "K": round(k_final, 1)}
-    except Exception as e:
-        print(f"SoilGrids Fetch Error: {e}")
-    return None
+
 
 # --- SIDEBAR UI ---
 with st.sidebar:
@@ -179,6 +162,7 @@ if state_input in state_coords:
     
     if vpd > 1.2:
         st.warning(f"High Vapor Pressure Deficit ({vpd:.2f} kPa). High plant water stress detected.")
+
 
 
 
