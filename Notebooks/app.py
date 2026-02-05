@@ -36,22 +36,24 @@ def get_season(month_name, mapping):
         if month_name in months:
             return season
     return "Month not found"
-Season= get_season(current_month)
+Season= get_season(current_month, season_months)
 
 with st.sidebar:
     st.header("Input Parameters")
     choice = st.radio("Preferred version", ["Most preferred crop", "Top 5 crop"])
     indian_states = [
-    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
-    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
-    "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
-    "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
-    "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
-    "Uttar Pradesh", "Uttarakhand", "West Bengal"
+    'Assam', 'Karnataka', 'Kerala', 'Meghalaya', 'West Bengal',
+       'Puducherry', 'Goa', 'Andhra Pradesh', 'Tamil Nadu', 'Odisha',
+       'Bihar', 'Gujarat', 'Madhya Pradesh', 'Maharashtra', 'Mizoram',
+       'Punjab', 'Uttar Pradesh', 'Haryana', 'Himachal Pradesh',
+       'Tripura', 'Nagaland', 'Chhattisgarh', 'Uttarakhand', 'Jharkhand',
+       'Delhi', 'Manipur', 'Jammu And Kashmir', 'Telangana',
+       'Arunachal Pradesh', 'Sikkim'
     ]
     choice= st.selectbox("Choose your state", indian_states)
     
     
+
 
 
 
