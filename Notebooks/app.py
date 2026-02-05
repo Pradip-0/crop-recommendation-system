@@ -38,6 +38,8 @@ def get_season(month_name, mapping):
     return "Month not found"
 Season= get_season(current_month, season_months)
 
+# fetch Rainfall data
+current_year = datetime.now().strftime("%Y")
 with st.sidebar:
     st.header("Input Parameters")
     choice = st.radio("Preferred version", ["Most preferred crop", "Top 5 crop"])
@@ -50,9 +52,13 @@ with st.sidebar:
        'Delhi', 'Manipur', 'Jammu And Kashmir', 'Telangana',
        'Arunachal Pradesh', 'Sikkim'
     ]
-    choice= st.selectbox("Choose your state", indian_states)
+    state= st.selectbox("Choose your state", indian_states)
+    area= st.number_input("Enter area in square foot",0,None)
     
     
+    
+    
+
 
 
 
