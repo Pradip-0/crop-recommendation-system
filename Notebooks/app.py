@@ -153,37 +153,13 @@ with st.sidebar:
     state_input = st.selectbox("Choose your state", list(state_coords.keys()))
     area = st.number_input("Enter area in square foot", min_value=0, value=1000)
     
-    st.divider()
-    
-    # 3. Soil Nutrient Automation
-    st.subheader("🧪 Soil Nutrients")
-    auto_soil = st.checkbox("Auto-fetch Soil Data (SoilGrids 250m)", value=True)
-    
-    # Get coordinates for the selected state
-    lat, lon = state_coords[state_input]
-    
-    if auto_soil:
-        with st.spinner("Fetching precise soil data..."):
-            soil_data = fetch_soilgrids_data(lat, lon)
-            
-        if soil_data:
-            st.success("✅ Data Fetched from ISRIC")
-            N = st.number_input("Nitrogen (N)", value=float(soil_data["N"]))
-            P = st.number_input("Phosphorus (P)", value=float(soil_data["P"]))
-            K = st.number_input("Potassium (K)", value=float(soil_data["K"]))
-   #         ph = st.slider("Soil pH Level", 4.0, 9.5, float(soil_data["pH"]))
-        else:
-            st.error("API Timeout. Entering manual mode.")
-            N = st.number_input("Nitrogen (N)", value=70.0)
-            P = st.number_input("Phosphorus (P)", value=40.0)
-            K = st.number_input("Potassium (K)", value=40.0)
-            ph = st.slider("Soil pH Level", 4.0, 9.5, 6.5)
-    else:
-        # Manual Entry Mode
-        N = st.number_input("Nitrogen (N)", value=70.0)
-        P = st.number_input("Phosphorus (P)", value=40.0)
-        K = st.number_input("Potassium (K)", value=40.0)
-        ph = st.slider("Soil pH Level", 4.0, 9.5, 6.5)
+  st.divider()
+    st.subheader("🧪 Soil Nutrients (Manual)")
+    # Manual NPK inputs as requested
+    N = st.number_input("Nitrogen (N)", min_value=0, value=70)
+    P = st.number_input("Phosphorus (P)", min_value=0, value=40)
+    K = st.number_input("Potassium (K)", min_value=0, value=40)
+#    ph = st.slider("Soil pH Level", 4.0, 9.5, 6.5)
 
 
 # --- MAIN LOGIC ---
@@ -203,5 +179,6 @@ if state_input in state_coords:
     
     if vpd > 1.2:
         st.warning(f"High Vapor Pressure Deficit ({vpd:.2f} kPa). High plant water stress detected.")
+
 
 
