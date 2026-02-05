@@ -136,7 +136,7 @@ with st.sidebar:
     state_input = st.selectbox("Choose your state", list(state_coords.keys()))
     area = st.number_input("Enter area in square foot", min_value=0, value=1000)
     
-  st.divider()
+    st.divider()
     st.subheader("🧪 Soil Nutrients (Manual)")
     # Manual NPK inputs as requested
     N = st.number_input("Nitrogen (N)", min_value=0, value=70)
@@ -162,6 +162,7 @@ if state_input in state_coords:
     
     if vpd > 1.2:
         st.warning(f"High Vapor Pressure Deficit ({vpd:.2f} kPa). High plant water stress detected.")
+
 
 
 
