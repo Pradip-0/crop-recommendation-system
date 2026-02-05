@@ -8,3 +8,5 @@ xgboost
 plotly
 datetime
 imdlib
+os
+requests
