@@ -23,12 +23,36 @@ def load_model():
 model = load_model()
 # fetching season
 current_month = datetime.now().strftime("%B")
+season_months = {
+    "Kharif": ["July", "August"],        
+    "Autumn": ["September", "October"], 
+    "Rabi": ["November", "December"],   
+    "Winter": ["January", "February"],   
+    "Summer": ["March", "April", "May", "June"] 
+}
+
+def get_season(month_name, mapping):
+    for season, months in mapping.items():
+        if month_name in months:
+            return season
+    return "Month not found"
+Season= get_season(current_month)
 
 with st.sidebar:
     st.header("Input Parameters")
     choice = st.radio("Preferred version", ["Most preferred crop", "Top 5 crop"])
+    indian_states = [
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
+    "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
+    "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+    "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+    "Uttar Pradesh", "Uttarakhand", "West Bengal"
+    ]
+    choice= st.selectbox("Choose your state", indian_states)
     
     
+
 
 
 
