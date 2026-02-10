@@ -146,6 +146,69 @@ with st.sidebar:
 
 # --- MAIN LOGIC ---
 
+def preprocess_input(state, area_sqft, n_ha, p_ha, k_ha, ph, weather_row):
+    """
+    Prepares the input DataFrame with 44 features (Numerical + One-Hot Encoded).
+    """
+    # 1. Get Column Names
+    model_cols = generate_manual_features()
+
+    # 2. Create Zero-Filled DataFrame
+    data_array = np.zeros((1, len(model_cols)))
+    input_df = pd.DataFrame(data_array, columns=model_cols)
+
+    # 3. Determine Season
+    current_month = datetime.now().strftime("%B")
+    clean_season = get_season_clean(current_month)
+    # Use the global SEASON_MAPPING
+    messy_season = SEASON_MAPPING.get(clean_season, "Whole Year ") 
+
+    # 4. Unit Conversions (kg/ha -> kg/sqft)
+    n_sq = n_ha / HA_TO_SQFT
+    p_sq = p_ha / HA_TO_SQFT
+    k_sq = k_ha / HA_TO_SQFT
+
+    # 5. Fill Numerical Columns
+    input_df['Area'] = area_sqft
+    input_df['Annual_Rainfall'] = weather_row['Annual_Rainfall']
+    input_df['Avg_Temperature'] = weather_row['Avg_Temperature']
+    input_df['humidity_pct'] = weather_row['humidity_pct']
+    input_df['soil_N_kg_sq_foot'] = n_sq
+    input_df['soil_P_kg_sq_foot'] = p_sq
+    input_df['soil_K_kg_sq_foot'] = k_sq
+    input_df['soil_pH'] = ph
+
+    # 6. One-Hot Encoding: Season
+    season_col_name = f"Season_{messy_season}"
+    if season_col_name in input_df.columns:
+        input_df[season_col_name] = 1
+    else:
+        raise ValueError(f"Season Column '{season_col_name}' not found in model features.")
+
+    # 7. One-Hot Encoding: State
+    state_col_name = f"State_{state}"
+    if state_col_name in input_df.columns:
+        input_df[state_col_name] = 1
+    else:
+        raise ValueError(f"State Column '{state_col_name}' not found in model features.")
+
+    return input_df
+
+def predict_crop(model, input_df):
+    """
+    Runs the prediction and maps the index to the crop name.
+    """
+    # Get the raw index (e.g., 17)
+    prediction_idx = int(model.predict(input_df)[0])
+    
+    # Map index to Name using global CROP_LIST
+    if 0 <= prediction_idx < len(CROP_LIST):
+        return CROP_LIST[prediction_idx]
+    else:
+        raise ValueError(f"Prediction Index {prediction_idx} is out of valid range.")
+
+# --- MAIN LOGIC ---
+
 if weather_df is not None and state_input in weather_df['State'].values:
     state_data = weather_df[weather_df['State'] == state_input].iloc[0]
     
@@ -159,69 +222,32 @@ if weather_df is not None and state_input in weather_df['State'].values:
     c4.metric("VPD", f"{current_vpd:.2f} kPa")
 
     if predict_btn and assets and 'model' in assets:
-        model = assets['model']
-
-        # --- 1. Get Features ---
-        model_cols = generate_manual_features()
-
-        # --- 2. Create Data Frame ---
-        data_array = np.zeros((1, len(model_cols)))
-        input_df = pd.DataFrame(data_array, columns=model_cols)
-
-        # --- 3. Prepare Values ---
-        current_month = datetime.now().strftime("%B")
-        clean_season = get_season_clean(current_month)
-        messy_season = SEASON_MAPPING.get(clean_season, "Whole Year ") 
-        
-        # Conversions
-        n_sq = N_ha / HA_TO_SQFT
-        p_sq = P_ha / HA_TO_SQFT
-        k_sq = K_ha / HA_TO_SQFT
-
-        # --- 4. Fill Numerical Columns ---
-        input_df['Area'] = area_sqft
-        input_df['Annual_Rainfall'] = state_data['Annual_Rainfall']
-        input_df['Avg_Temperature'] = state_data['Avg_Temperature']
-        input_df['humidity_pct'] = state_data['humidity_pct']
-        input_df['soil_N_kg_sq_foot'] = n_sq
-        input_df['soil_P_kg_sq_foot'] = p_sq
-        input_df['soil_K_kg_sq_foot'] = k_sq
-        input_df['soil_pH'] = ph
-
-        # --- 5. Fill Categorical (One-Hot) ---
-        
-        # A. Fill Season
-        season_col_name = f"Season_{messy_season}"
-        if season_col_name in input_df.columns:
-            input_df[season_col_name] = 1
-        else:
-            st.error(f"❌ Error: Could not find column '{season_col_name}'.")
-            st.stop()
-
-        # B. Fill State
-        state_col_name = f"State_{state_input}"
-        if state_col_name in input_df.columns:
-            input_df[state_col_name] = 1
-        else:
-             st.error(f"❌ Error: Model missing column for '{state_input}'.")
-             st.stop()
-
-        # --- 6. Predict ---
         try:
-            # Get the index (e.g., 17)
-            prediction_idx = int(model.predict(input_df)[0])
-            
-            # Map index to Name using our manual list
-            if 0 <= prediction_idx < len(CROP_LIST):
-                crop_name = CROP_LIST[prediction_idx]
-                st.success(f"🌱 Recommended Crop: **{crop_name}**")
-            else:
-                st.error(f"⚠️ Prediction Index {prediction_idx} is out of range.")
+            # STEP 1: PREPROCESS
+            # We isolate all data preparation logic here
+            input_df = preprocess_input(
+                state=state_input,
+                area_sqft=area_sqft,
+                n_ha=N_ha,
+                p_ha=P_ha,
+                k_ha=K_ha,
+                ph=ph,
+                weather_row=state_data
+            )
 
+            # STEP 2: PREDICT
+            # We isolate the model interaction here
+            model = assets['model']
+            crop_name = predict_crop(model, input_df)
+
+            # STEP 3: DISPLAY
+            st.success(f"🌱 Recommended Crop: **{crop_name}**")
             st.balloons()
-            
+
+        except ValueError as e:
+            st.error(f"Input Error: {e}")
         except Exception as e:
-            st.error(f"Prediction Error: {e}")
+            st.error(f"Unexpected Error: {e}")
 
 elif weather_df is None:
     st.info("Loading weather data... (Please ensure the daily update script has run)")
