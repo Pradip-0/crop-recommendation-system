@@ -7,123 +7,127 @@ from datetime import datetime
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="AgriSmart Labs",
-    page_icon="🧬",
+    page_title="AgriSmart Analytics",
+    page_icon="🌾",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
-# --- SCIENTIFIC DARK MODE CSS ---
+# --- DARK DASHBOARD CSS ---
 st.markdown("""
 <style>
-    /* 1. MAIN BACKGROUND: Deep Scientific Black with Grid Pattern */
+    /* Global Dark Background */
     .stApp {
-        background-color: #050505;
-        background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-        background-size: 30px 30px;
-    }
-
-    /* 2. TYPOGRAPHY: Scientific & High Contrast */
-    h1, h2, h3 {
-        color: #00e5ff !important; /* Cyan Neon */
-        font-family: 'Segoe UI', sans-serif;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    .stMarkdown p, .stMarkdown label, .stMarkdown div {
-        color: #e0e0e0 !important;
+        background-color: #0e1117;
+        color: #FAFAFA;
+        font-family: 'Inter', sans-serif;
     }
     
-    /* 3. METRIC CARDS: HUD Style */
+    /* Card Container Style */
+    .css-card {
+        background-color: #181b21;
+        border: 1px solid #303339;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        margin-bottom: 15px;
+    }
+    
+    /* Metrics Styling */
     div[data-testid="stMetric"] {
-        background-color: rgba(0, 229, 255, 0.05); /* Cyan Tint */
-        border: 1px solid rgba(0, 229, 255, 0.2);
+        background-color: #181b21;
+        border-radius: 10px;
         padding: 15px;
-        border-radius: 5px;
-        color: #e0e0e0;
+        border: 1px solid #303339;
     }
     div[data-testid="stMetricLabel"] {
-        color: #00e5ff;
-        font-family: 'Courier New', monospace;
-        font-size: 0.8rem;
+        color: #9ca3af; /* Muted text */
     }
     div[data-testid="stMetricValue"] {
         color: #ffffff;
-        font-family: 'Courier New', monospace;
-        font-weight: bold;
-    }
-
-    /* 4. INPUT CARDS: Glassmorphism */
-    .input-card {
-        background: rgba(255, 255, 255, 0.03);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-    }
-
-    /* 5. RESULT CARDS: Holographic Style */
-    .result-card {
-        background: linear-gradient(135deg, rgba(0, 255, 65, 0.1), rgba(0, 0, 0, 0.5));
-        border-left: 4px solid #00ff41; /* Neon Green */
-        padding: 20px;
-        border-radius: 5px;
-        margin-top: 20px;
-        box-shadow: 0 0 15px rgba(0, 255, 65, 0.2);
-    }
-    .result-title {
-        color: #00ff41;
-        font-size: 1.8rem;
-        font-weight: bold;
-        font-family: 'Courier New', monospace;
-        margin-bottom: 5px;
-    }
-    .result-subtitle {
-        color: #b0bec5;
-        font-size: 0.9rem;
-        font-family: 'Courier New', monospace;
-    }
-
-    /* 6. ADVICE GRIDS */
-    .advice-box {
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        padding: 15px;
-        border-radius: 5px;
-        height: 100%;
-        color: #cfd8dc;
-        font-size: 0.9rem;
-    }
-    .advice-header {
-        color: #00e5ff;
-        font-weight: bold;
-        margin-bottom: 10px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        padding-bottom: 5px;
-        font-family: 'Courier New', monospace;
-    }
-
-    /* 7. BUTTONS: Cyberpunk Style */
-    div.stButton > button {
-        background: transparent;
-        color: #00ff41;
-        border: 1px solid #00ff41;
-        font-family: 'Courier New', monospace;
-        text-transform: uppercase;
-        font-weight: bold;
-        padding: 10px 20px;
-        transition: all 0.3s ease;
-    }
-    div.stButton > button:hover {
-        background: #00ff41;
-        color: black;
-        box-shadow: 0 0 10px #00ff41;
     }
     
-    /* Force white text on sliders/inputs */
-    .stSlider label, .stSelectbox label, .stNumberInput label {
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #13151a;
+        border-right: 1px solid #303339;
+    }
+    
+    /* Custom Result Banner */
+    .result-banner {
+        background: linear-gradient(90deg, #1b5e20 0%, #2e7d32 100%);
+        color: white;
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: 1px solid #43a047;
+    }
+    .crop-name {
+        font-size: 2.2rem;
+        font-weight: 800;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    .match-tag {
+        background-color: rgba(0,0,0,0.3);
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    /* Advice Cards */
+    .info-card {
+        background-color: #181b21;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 5px solid #555;
+        height: 100%;
+        border: 1px solid #303339;
+    }
+    .card-fert { border-left-color: #00e676; } /* Bright Green */
+    .card-pest { border-left-color: #ff9100; } /* Bright Orange */
+    .card-yield { border-left-color: #2979ff; } /* Bright Blue */
+
+    .card-header {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #e0e0e0;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid #303339;
+        padding-bottom: 8px;
+    }
+    
+    .card-content {
+        color: #b0bec5;
+        line-height: 1.5;
+    }
+    
+    /* Button Override */
+    div.stButton > button {
+        background-color: #2e7d32;
+        color: white;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-weight: 600;
+        border: none;
+        width: 100%;
+        transition: all 0.2s;
+    }
+    div.stButton > button:hover {
+        background-color: #1b5e20;
+        box-shadow: 0 0 10px rgba(46, 125, 50, 0.5);
+    }
+
+    /* Force text colors for inputs */
+    label, .stMarkdown p {
         color: #e0e0e0 !important;
     }
 </style>
@@ -270,76 +274,63 @@ def preprocess_input(state, area_sqft, n_ha, p_ha, k_ha, ph, weather_row, season
         
     return input_df
 
-# --- HERO SECTION ---
-# Clean scientific header without sidebar
+# --- MAIN LAYOUT ---
+
 assets = load_assets()
 weather_df = get_weather_data()
 
-c1, c2 = st.columns([1, 4])
-with c1:
-    # Scientific Icon (Microscope/Plant)
-    st.image("https://cdn-icons-png.flaticon.com/512/3058/3058995.png", width=80)
-with c2:
-    st.title("AGRI-SMART LABS")
-    st.caption("AI-POWERED HYDROPONICS & SOIL ANALYTICS")
-
+# Hero Section
+st.title("🌾 AgriSmart Analytics")
+st.markdown("### Professional Crop Intelligence Dashboard")
 st.markdown("---")
 
-# --- MAIN INPUT GRID (Centered) ---
-st.subheader("📡 FIELD DATA ENTRY")
+# Layout
+with st.sidebar:
+    st.markdown("### 🛠️ Input Parameters")
+    
+    st.markdown("**1. Location Profile**")
+    state_input = st.selectbox("Select State", UI_STATES)
+    area_sqft = st.number_input("Garden Area (sq ft)", min_value=10, value=100)
 
-# Row 1: Location & Area
-col1, col2 = st.columns(2)
-with col1:
-    state_input = st.selectbox("LOCATION MONITORING", UI_STATES)
-with col2:
-    area_sqft = st.number_input("CULTIVATION AREA (SQ FT)", min_value=10, value=100)
+    st.markdown("---")
+    st.markdown("**2. Soil Chemistry**")
+    st.caption("Values in kg/hectare")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        N_ha = st.number_input("Nitrogen (N)", value=140)
+        K_ha = st.number_input("Potassium (K)", value=40)
+    with col2:
+        P_ha = st.number_input("Phosphorus (P)", value=40)
+        ph = st.slider("Soil pH", 4.0, 9.5, 6.5)
 
-# Row 2: Soil Sensors
-st.markdown("<br>", unsafe_allow_html=True)
-col3, col4, col5, col6 = st.columns(4)
+    st.markdown("---")
+    predict_btn = st.button("RUN ANALYSIS", type="primary")
 
-with col3:
-    N_ha = st.number_input("NITROGEN (N) [kg/ha]", value=140)
-with col4:
-    P_ha = st.number_input("PHOSPHORUS (P) [kg/ha]", value=40)
-with col5:
-    K_ha = st.number_input("POTASSIUM (K) [kg/ha]", value=40)
-with col6:
-    ph = st.slider("SOIL pH LEVEL", 4.0, 9.5, 6.5)
+# --- MAIN DASHBOARD LOGIC ---
 
-st.markdown("---")
-
-# --- LIVE METRICS DASHBOARD ---
 if weather_df is not None and state_input in weather_df['State'].values:
     state_data = weather_df[weather_df['State'] == state_input].iloc[0]
     
-    st.subheader(f"📊 ENVIRONMENTAL TELEMETRY: {state_input.upper()}")
+    st.subheader(f"📍 Climate Telemetry: {state_input}")
     
-    w_col1, w_col2, w_col3, w_col4 = st.columns(4)
-    with w_col1:
-        st.metric("AVG TEMP", f"{state_data['Avg_Temperature']:.1f}°C")
-    with w_col2:
-        st.metric("PRECIPITATION", f"{state_data['Annual_Rainfall']:.1f} mm")
-    with w_col3:
-        st.metric("REL. HUMIDITY", f"{state_data['humidity_pct']:.0f}%")
-    with w_col4:
-        current_vpd = calculate_vpd(state_data['Avg_Temperature'], state_data['humidity_pct'])
-        st.metric("VAPOR PRESSURE DEFICIT", f"{current_vpd:.2f} kPa")
-
+    # 4-Column Metrics
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Temperature", f"{state_data['Avg_Temperature']:.1f}°C", "Live")
+    c2.metric("Rainfall", f"{state_data['Annual_Rainfall']:.1f} mm", "Annual Avg")
+    c3.metric("Humidity", f"{state_data['humidity_pct']:.0f}%", "Avg")
+    
+    current_vpd = calculate_vpd(state_data['Avg_Temperature'], state_data['humidity_pct'])
+    c4.metric("VPD", f"{current_vpd:.2f} kPa", "Moisture Stress")
+    
     st.markdown("<br>", unsafe_allow_html=True)
-    
-    # PREDICT BUTTON
-    col_centered = st.columns([1, 2, 1])
-    with col_centered[1]:
-        predict_btn = st.button("INITIATE CROP ANALYSIS SEQUENCE")
 
     if predict_btn and assets and 'model' in assets:
-        with st.spinner("PROCESSING ALGORITHMS..."):
+        with st.spinner("Processing agricultural models..."):
             try:
                 model = assets['model']
 
-                # --- DUAL PREDICTION LOGIC ---
+                # --- DUAL PREDICTION ---
                 df_seasonal = preprocess_input(state_input, area_sqft, N_ha, P_ha, K_ha, ph, state_data)
                 pred_idx_seasonal = int(model.predict(df_seasonal)[0])
                 try: prob_seasonal = np.max(model.predict_proba(df_seasonal))
@@ -352,12 +343,12 @@ if weather_df is not None and state_input in weather_df['State'].values:
 
                 if prob_whole > prob_seasonal:
                     final_idx = pred_idx_whole
-                    note = "SUITABLE YEAR-ROUND"
+                    note = "YEAR-ROUND VARIETY"
                 else:
                     final_idx = pred_idx_seasonal
-                    note = f"OPTIMAL FOR {datetime.now().strftime('%B').upper()}"
+                    note = f"SEASONAL: {datetime.now().strftime('%B').upper()}"
 
-                # --- DISPLAY RESULTS ---
+                # --- RESULT DISPLAY ---
                 if 0 <= final_idx < len(CROP_LIST):
                     crop_name = CROP_LIST[final_idx]
                     info = CROP_INFO.get(crop_name, DEFAULT_INFO)
@@ -365,48 +356,54 @@ if weather_df is not None and state_input in weather_df['State'].values:
                     yield_ton_ha = info['yield']
                     yield_kg = (yield_ton_ha * 1000) * (area_sqft / HA_TO_SQFT)
                     
-                    # Result Card HTML
+                    # 1. Main Banner
                     st.markdown(f"""
-                    <div class="result-card">
-                        <div class="result-title">IDENTIFIED CROP: {crop_name.upper()}</div>
-                        <div class="result-subtitle">ANALYSIS: {note}</div>
+                    <div class="result-banner">
+                        <div>
+                            <div style="font-size: 0.9rem; opacity: 0.9;">OPTIMAL CROP IDENTIFIED</div>
+                            <div class="crop-name">{crop_name}</div>
+                        </div>
+                        <div class="match-tag">{note}</div>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Advice Grid
-                    st.markdown("<br>", unsafe_allow_html=True)
+                    # 2. Detailed Cards
                     col_A, col_B, col_C = st.columns(3)
                     
                     with col_A:
                         st.markdown(f"""
-                        <div class="advice-box">
-                            <div class="advice-header">⚗️ NUTRIENT PROTOCOL</div>
-                            {info['fert']}
+                        <div class="info-card card-fert">
+                            <div class="card-header">🧪 Fertilizer Protocol</div>
+                            <div class="card-content">{info['fert']}</div>
                         </div>
                         """, unsafe_allow_html=True)
                         
                     with col_B:
                         st.markdown(f"""
-                        <div class="advice-box">
-                            <div class="advice-header">🛡️ PROTECTION PROTOCOL</div>
-                            {info['pest']}
+                        <div class="info-card card-pest">
+                            <div class="card-header">🛡️ Pest Management</div>
+                            <div class="card-content">{info['pest']}</div>
                         </div>
                         """, unsafe_allow_html=True)
                         
                     with col_C:
                         st.markdown(f"""
-                        <div class="advice-box">
-                            <div class="advice-header">📉 YIELD PROJECTION</div>
-                            <span style="font-size: 1.5rem; color: #00e5ff; font-weight: bold;">{yield_kg:.2f} KG</span><br>
-                            <span style="font-size: 0.8rem;">ESTIMATED FOR {area_sqft} SQ FT</span>
+                        <div class="info-card card-yield">
+                            <div class="card-header">📉 Yield Forecast</div>
+                            <div style="font-size: 2rem; font-weight: 800; color: #1565C0;">{yield_kg:.2f} kg</div>
+                            <div style="color: #666; font-size: 0.8rem;">Estimated for {area_sqft} sq ft</div>
                         </div>
                         """, unsafe_allow_html=True)
 
+                    st.balloons()
                 else:
-                    st.error(f"⚠️ SYSTEM ERROR: Index {final_idx} out of bounds.")
+                    st.error(f"Prediction Error: Index {final_idx} out of range.")
 
             except Exception as e:
-                st.error(f"COMPUTATION ERROR: {e}")
+                st.error(f"System Error: {e}")
+
+    elif not predict_btn:
+        st.info("👋 Ready to analyze. Adjust parameters in the sidebar and click RUN ANALYSIS.")
 
 elif weather_df is None:
-    st.warning("⚠️ WEATHER TELEMETRY OFFLINE. CHECK ROOT DIRECTORY FOR CSV CACHE.")
+    st.warning("⚠️ WEATHER DATA OFFLINE. Please check repository configuration.")
