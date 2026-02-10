@@ -20,9 +20,8 @@ jobs:
           python-version: '3.9'
 
       - name: Install Dependencies
-        # Only installing libraries needed for the fetch script
         run: |
-          pip install pandas numpy imdlib requests xarray netCDF4
+          pip install pandas numpy imdlib requests xarray netCDF4 scipy cftime
 
       - name: Run Update Script
         # <--- THIS IS THE CHANGE
