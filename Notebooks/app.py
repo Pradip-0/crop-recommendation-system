@@ -382,33 +382,49 @@ if weather_df is not None and state_input in weather_df['State'].values:
                     yield_ton_ha = info['yield']
                     yield_kg = (yield_ton_ha * 1000) * (area_sqft / HA_TO_SQFT)
                     
-                    # --- DYNAMIC BACKGROUND IMAGE LOGIC ---
-                    # 1. Clean filename (handle slashes like Arhar/Tur -> Arhar_Tur)
-                    safe_crop_name = crop_name.replace("/", "_")
+                    # --- DYNAMIC BACKGROUND IMAGE LOGIC (ROBUST VERSION) ---
                     
-                    # 2. Search for image with various extensions
+                    # 1. Generate variations of filename (Arhar/Tur -> Arhar Tur, Arhar_Tur, etc)
+                    variations = [
+                        crop_name, 
+                        crop_name.replace("/", " "),
+                        crop_name.replace("/", "_"),
+                        crop_name.replace("/", "-"),
+                        crop_name.replace(" ", "_"),
+                        crop_name.replace(" ", "")
+                    ]
+                    # Add lowercase versions
+                    variations.extend([v.lower() for v in variations])
+                    # Unique list
+                    variations = list(set(variations))
+                    
                     img_path = None
-                    for ext in [".jpg", ".jpeg", ".png", ".webp"]:
-                        possible_path = os.path.join(IMAGES_DIR, f"{safe_crop_name}{ext}")
-                        if os.path.exists(possible_path):
-                            img_path = possible_path
-                            break
+                    # 2. Robust Search
+                    if os.path.exists(IMAGES_DIR):
+                        for name in variations:
+                            for ext in [".jpg", ".jpeg", ".png", ".webp", ".JPG", ".JPEG", ".PNG"]:
+                                possible_path = os.path.join(IMAGES_DIR, f"{name}{ext}")
+                                if os.path.exists(possible_path):
+                                    img_path = possible_path
+                                    break
+                            if img_path: break
+                    else:
+                        print(f"Warning: Images directory not found at {IMAGES_DIR}")
+
+                    # 3. Construct CSS
+                    banner_style = "background: linear-gradient(90deg, #1b5e20 0%, #2e7d32 100%);" # Default
                     
-                    # 3. Construct CSS style
                     if img_path:
                         img_b64 = get_img_as_base64(img_path)
                         if img_b64:
+                            # Determine mime type roughly
+                            mime = "image/png" if img_path.lower().endswith(".png") else "image/jpeg"
                             banner_style = f"""
                                 background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.8)), 
-                                url("data:image/png;base64,{img_b64}");
+                                url("data:{mime};base64,{img_b64}");
                                 background-size: cover;
                                 background-position: center;
                             """
-                        else:
-                            banner_style = "background: linear-gradient(90deg, #1b5e20 0%, #2e7d32 100%);"
-                    else:
-                        # Fallback gradient if no image found
-                        banner_style = "background: linear-gradient(90deg, #1b5e20 0%, #2e7d32 100%);"
 
                     # 4. Render Banner
                     st.markdown(f"""
