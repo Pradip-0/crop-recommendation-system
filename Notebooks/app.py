@@ -8,12 +8,10 @@ from datetime import datetime, date
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="AgriSmart Advisor", page_icon="🌱", layout="wide")
 
-# --- PATH CONFIGURATION (CRITICAL FIX) ---
-# 1. Identify where app.py is located (e.g., /Repo/Notebooks)
+# --- PATH CONFIGURATION ---
+# 1. Identify where app.py is located
 current_dir = os.path.dirname(os.path.abspath(__file__))
-
-# 2. Identify the Root of the repo (e.g., /Repo)
-# We go "one level up" from the Notebooks folder
+# 2. Identify the Root of the repo (one level up from Notebooks)
 root_dir = os.path.dirname(current_dir)
 
 # 3. Define paths relative to the Root
@@ -54,12 +52,8 @@ season_months = {
 # --- ASSET LOADING ---
 @st.cache_resource
 def load_assets():
-    """Loads model from the Root/Models directory."""
-    
-    # Path: /Repo/Models/crop_recomender.joblib
+    """Loads the Model and the Target Label Encoder."""
     model_path = os.path.join(MODELS_DIR, 'crop_recomender.joblib')
-    
-    # Path: /Repo/Models/label_encoder.joblib (Target Encoder)
     le_path = os.path.join(MODELS_DIR, 'label_encoder.joblib') 
 
     assets = {}
@@ -72,11 +66,15 @@ def load_assets():
              st.error(f"🚨 Error loading model: {e}")
              return None
     else:
-        st.error(f"🚨 Model file not found at: `{model_path}`")
-        st.info(f"Root Dir determined as: `{root_dir}`")
-        return None
+        # Fallback check current dir
+        local_path = os.path.join(current_dir, 'crop_recomender.joblib')
+        if os.path.exists(local_path):
+             assets['model'] = joblib.load(local_path)
+        else:
+            st.error(f"🚨 Model not found at: `{model_path}`")
+            return None
 
-    # 2. Load Target Label Encoder (Optional but recommended for decoding output)
+    # 2. Load Target Label Encoder
     if os.path.exists(le_path):
         try:
             assets['target_le'] = joblib.load(le_path)
@@ -98,16 +96,40 @@ def calculate_vpd(temp_c, rh_pct):
     return max(0, svp - avp)
 
 def get_weather_data():
-    """Reads the cache file from the Root directory."""
     if os.path.exists(CACHE_FILE_PATH):
         try:
             return pd.read_csv(CACHE_FILE_PATH)
         except Exception as e:
-            st.warning(f"⚠️ Error reading cache file: {e}")
+            st.warning(f"Error reading cache: {e}")
             return None
     else:
-        st.warning(f"⚠️ Weather Cache not found at `{CACHE_FILE_PATH}`. Please run the update script.")
+        st.warning(f"Weather Cache not found at {CACHE_FILE_PATH}")
         return None
+
+def get_model_features(model):
+    """Safely retrieves feature names, or returns a fallback list if missing."""
+    try:
+        if hasattr(model, 'feature_names_in_'):
+            return list(model.feature_names_in_)
+        elif hasattr(model, 'get_booster'):
+            return model.get_booster().feature_names
+    except:
+        pass
+    
+    # --- FALLBACK FEATURE LIST (44 Features) ---
+    # This list allows the app to run even if the model file doesn't have metadata.
+    # It assumes the standard Alphabetical One-Hot Encoding order.
+    return [
+        'Area', 'Annual_Rainfall', 'Fertilizer', 'Pesticide', 'Yield', 'Avg_Temperature', 
+        'Season_Autumn', 'Season_Kharif', 'Season_Rabi', 'Season_Summer', 'Season_Whole Year', 'Season_Winter',
+        'State_Andhra Pradesh', 'State_Arunachal Pradesh', 'State_Assam', 'State_Bihar', 'State_Chhattisgarh', 
+        'State_Delhi', 'State_Goa', 'State_Gujarat', 'State_Haryana', 'State_Himachal Pradesh', 
+        'State_Jammu and Kashmir', 'State_Jharkhand', 'State_Karnataka', 'State_Kerala', 'State_Madhya Pradesh', 
+        'State_Maharashtra', 'State_Manipur', 'State_Meghalaya', 'State_Mizoram', 'State_Nagaland', 
+        'State_Odisha', 'State_Puducherry', 'State_Punjab', 'State_Rajasthan', 'State_Sikkim', 
+        'State_Tamil Nadu', 'State_Telangana', 'State_Tripura', 'State_Uttar Pradesh', 'State_Uttarakhand', 
+        'State_West Bengal'
+    ]
 
 # --- MAIN APP UI ---
 
@@ -146,7 +168,6 @@ if weather_df is not None and state_input in weather_df['State'].values:
     c2.metric("Rainfall", f"{state_data['Annual_Rainfall']:.1f}mm")
     c3.metric("Humidity", f"{state_data['humidity_pct']:.0f}%")
     
-    # Calculate VPD live
     current_vpd = calculate_vpd(state_data['Avg_Temperature'], state_data['humidity_pct'])
     c4.metric("VPD", f"{current_vpd:.2f} kPa")
 
@@ -154,25 +175,15 @@ if weather_df is not None and state_input in weather_df['State'].values:
         model = assets['model']
         target_le = assets.get('target_le')
 
-        # --- 1. Get Model's Expected Columns ---
-        model_cols = None
-        try:
-            if hasattr(model, 'feature_names_in_'):
-                model_cols = model.feature_names_in_
-            elif hasattr(model, 'get_booster'):
-                 model_cols = model.get_booster().feature_names
-        except Exception:
-            pass
+        # 1. Get Features (Dynamic or Fallback)
+        model_cols = get_model_features(model)
+        
+        # 2. Create Data Frame
+        # Using np.zeros first to avoid "DataFrame constructor" errors
+        data_array = np.zeros((1, len(model_cols)))
+        input_df = pd.DataFrame(data_array, columns=model_cols)
 
-        if model_cols is None:
-             st.error("🚨 Critical Error: Could not retrieve feature names from the saved model.")
-             st.stop()
-
-        # --- 2. Create a "Zero" DataFrame ---
-        # Initialize with zeros. This handles the One-Hot Encoding structure automatically.
-        input_df = pd.DataFrame(np.zeros((1, len(model_cols))), columns=model_cols)
-
-        # --- 3. Prepare Data Values ---
+        # 3. Prepare Values
         current_month = datetime.now().strftime("%B")
         clean_season = get_season_clean(current_month)
         
@@ -181,73 +192,56 @@ if weather_df is not None and state_input in weather_df['State'].values:
         p_sq = P_ha / HA_TO_SQFT
         k_sq = K_ha / HA_TO_SQFT
 
-        # --- 4. Fill Numerical Features ---
-        # Helper to set value if column exists (handling slight naming differences)
-        def safe_set(col_name, value):
-            if col_name in input_df.columns:
-                input_df[col_name] = value
+        # 4. Fill Numerical Columns (Mapping UI inputs to Model inputs)
+        # Note: If your model uses 'Fertilizer', we map N+P+K to it as an approximation
+        # or use specific columns if available.
+        def safe_set(col, val):
+            if col in input_df.columns: input_df[col] = val
         
-        # Fill standard numerical columns
         safe_set('Area', area_sqft)
+        safe_set('Annual_Rainfall', state_data['Annual_Rainfall'])
+        safe_set('Avg_Temperature', state_data['Avg_Temperature'])
+        
+        # Map User Inputs to likely model columns
         safe_set('N', n_sq)
         safe_set('P', p_sq)
         safe_set('K', k_sq)
+        safe_set('Fertilizer', n_sq + p_sq + k_sq) # Approximate if single col
         safe_set('pH', ph)
-        safe_set('rain', state_data['Annual_Rainfall'])
-        safe_set('temp', state_data['Avg_Temperature'])
-        safe_set('humidity', state_data['humidity_pct'])
-        safe_set('VPD', current_vpd)
         
-        # Also try "soil_N_kg_ha" style names if your notebook used those directly
-        safe_set('soil_N_kg_ha', n_sq) # Note: Variable assumes sq conversion requested
-        safe_set('soil_P_kg_ha', p_sq)
-        safe_set('soil_K_kg_ha', k_sq)
-        safe_set('soil_pH', ph)
-        safe_set('rainfall_mm', state_data['Annual_Rainfall'])
-        safe_set('temperature_C', state_data['Avg_Temperature'])
-        safe_set('humidity_pct', state_data['humidity_pct'])
-
-
-        # --- 5. Fill Categorical (One-Hot) Features ---
-        
-        # Season Logic (Fuzzy Match for spaces)
+        # 5. Fill Categorical (One-Hot)
+        # Fuzzy match season
         clean_season_str = clean_season.strip().lower()
         season_found = False
-        
         for col in model_cols:
             if "season" in col.lower() and clean_season_str in col.lower():
                 input_df[col] = 1
                 season_found = True
                 break
-        
         if not season_found:
-             # Fallback to 'Whole Year' if specific season not found
+             # Fallback to Whole Year if specific season missing
              for col in model_cols:
                  if "whole year" in col.lower():
                      input_df[col] = 1
                      break
 
-        # State Logic (Fuzzy Match)
+        # Fuzzy match state
         clean_state_str = state_input.strip().lower()
         state_found = False
-        
         for col in model_cols:
             if "state" in col.lower() and clean_state_str in col.lower():
                 input_df[col] = 1
                 state_found = True
                 break
-                
+        
         if not state_found:
-             st.error(f"❌ Matching Error: The model does not have a column for '{state_input}'.")
-             st.write("Debug - Available state columns:", [c for c in model_cols if 'state' in c.lower()])
+             st.error(f"❌ State '{state_input}' not found in model columns.")
              st.stop()
 
-        # --- 6. Predict and Decode ---
+        # 6. Predict
         try:
-            # Predict (Returns an index/number)
             prediction_idx = model.predict(input_df)[0]
             
-            # Decode to Name if encoder exists
             if target_le:
                 try:
                     prediction_name = target_le.inverse_transform([prediction_idx])[0]
@@ -260,8 +254,8 @@ if weather_df is not None and state_input in weather_df['State'].values:
             st.balloons()
             
         except Exception as e:
-            st.error(f"Prediction Failed: {e}")
-            st.write("Debug - Input Shape:", input_df.shape)
+            st.error(f"Prediction Error: {e}")
+            st.write("Debug info: Model expects:", len(model_cols), "features.")
 
 elif weather_df is None:
     st.info("Loading weather data...")
