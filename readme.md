@@ -119,17 +119,18 @@ This project uses a Cron Job via GitHub Actions to keep weather data fresh witho
 
 ***Action***: Executes Notebooks/daily_update.py, fetches the latest climate data from IMD, saves it to daily_weather_cache.csv, and commits the file back to the repository.
 
-***Benefit***: The Streamlit app loads instantly by reading the static CSV instead of querying APIs in real-time.
+***Benefit***: The Streamlit app loads instantly by reading the static CSV file rather than querying APIs in real time.
 
 ## 📸 Visuals
 
-<img width="1895" height="862" alt="App image" src="https://github.com/user-attachments/assets/e4716dd8-2714-4fb0-a8d9-98d02a5098bb" />
+<img width="1877" height="868" alt="App image" src="https://github.com/user-attachments/assets/5ee130f3-3f01-4f93-96de-e79c8544aa3d" />
 
-1. The Professional Dashboard
+1. **The Professional Dashboard**:
 Real-time climate telemetry and soil input grid in Dark Mode.
 
-2. Prediction Results
-The Result Card shows the recommended crop, expected yield (in kg), and specific care instructions.p
+2. **Prediction Results**:
+The Result Card shows the recommended crop, expected yield (in kg), and specific care instructions.
+
 
 
 
