@@ -1,15 +1,16 @@
 import pandas as pd
 import numpy as np
 import imdlib as imd
+import requests
 from datetime import datetime, date
 import os
+import sys
 
-# --- CONFIG ---
-# This saves the file to the MAIN folder (one level up from Notebooks)
-# So your app.py (which is likely in the main folder or Notebooks) can find it.
-CACHE_FILE = "daily_weather_cache.csv" 
+# --- CONFIGURATION ---
+# We save the file to the current working directory (Root of the repo)
+CACHE_FILE = "daily_weather_cache.csv"
 
-# Coordinates
+# State Coordinates (Must match app.py exactly)
 state_coords = {
     'Andhra Pradesh': (15.91, 79.74), 'Arunachal Pradesh': (28.21, 94.72),
     'Assam': (26.20, 92.93), 'Bihar': (25.09, 85.31), 'Chhattisgarh': (21.27, 81.86),
@@ -34,31 +35,46 @@ def calculate_vpd(temp_c, rh_pct):
     return max(0, svp - avp)
 
 def fetch_data():
-    print("Starting Daily Weather Fetch...")
+    print(f"🚀 Starting Weather Fetch for {date.today()}...")
+    
+    # 1. Setup Dates
     end_year = datetime.now().year - 1
     start_year = end_year - 4
     month_num = datetime.now().month
 
+    # 2. Download Data (With Error Handling)
     try:
+        print("   ⬇️ Downloading IMD Rain Data...")
         rain_data = imd.get_data('rain', start_year, end_year, fn_format='yearwise')
+        
+        print("   ⬇️ Downloading IMD Tmax Data...")
         tmax_data = imd.get_data('tmax', start_year, end_year, fn_format='yearwise')
+        
+        print("   ⬇️ Downloading IMD Tmin Data...")
         tmin_data = imd.get_data('tmin', start_year, end_year, fn_format='yearwise')
         
+        # Convert to Xarray (This often requires cftime/scipy)
         ds_rain = rain_data.get_xarray()
         ds_tmax = tmax_data.get_xarray()
         ds_tmin = tmin_data.get_xarray()
+        print("   ✅ Download Complete. Processing States...")
+        
     except Exception as e:
-        print(f"Error downloading IMD data: {e}")
-        return
+        print(f"❌ CRITICAL ERROR during download/conversion: {e}")
+        # Force GitHub Actions to fail so you see the red X
+        sys.exit(1)
 
     all_data = []
     
+    # 3. Process States
     for state, (lat, lon) in state_coords.items():
         try:
+            # Slicing Logic
             m_rain = ds_rain.sel(time=ds_rain.time.dt.month == month_num).sel(lat=lat, lon=lon, method='nearest')
             m_tmax = ds_tmax.sel(time=ds_tmax.time.dt.month == month_num).sel(lat=lat, lon=lon, method='nearest')
             m_tmin = ds_tmin.sel(time=ds_tmin.time.dt.month == month_num).sel(lat=lat, lon=lon, method='nearest')
 
+            # Weighted Temp
             yearly_means = []
             for y in range(start_year, end_year + 1):
                 val = (m_tmax.sel(time=m_tmax.time.dt.year == y).tmax.mean() + 
@@ -66,13 +82,38 @@ def fetch_data():
                 yearly_means.append(float(val))
             
             weighted_temp = np.dot(yearly_means, [0.05, 0.10, 0.15, 0.30, 0.40])
+            
+            # Rain Stats
             total_rain = float(m_rain.rain.sum())
             avg_rain = total_rain / 5
             rainy_days = (m_rain.rain > 2.5).sum().item() / 5
             
+            # Humidity & VPD
             avg_humidity = 60.0 
             vpd = calculate_vpd(weighted_temp, avg_humidity)
 
             all_data.append({
                 "State": state,
-                "Avg
+                "Avg_Temperature": weighted_temp,
+                "Annual_Rainfall": avg_rain,
+                "humidity_pct": avg_humidity,
+                "Rainy_Days": rainy_days,
+                "VPD": vpd,
+                "Date_Updated": date.today()
+            })
+            # print(f"      Processed {state}") # Uncomment for verbose logs
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Could not process {state}: {e}")
+
+    # 4. Save to CSV
+    if len(all_data) > 0:
+        df = pd.DataFrame(all_data)
+        df.to_csv(CACHE_FILE, index=False)
+        print(f"✅ SUCCESS: Saved {len(all_data)} states to {CACHE_FILE}")
+    else:
+        print("❌ ERROR: No data processed. Exiting.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    fetch_data()
