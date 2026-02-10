@@ -34,7 +34,6 @@ state_coords = {
 }
 
 # --- SEASON MAPPING ---
-# We use clean names here. The code later adds the spaces to match your encoder.
 season_months = {
     "Kharif": ["July", "August", "September", "October"], 
     "Rabi": ["November", "December"],
@@ -46,7 +45,8 @@ season_months = {
 
 # --- ASSET LOADING ---
 @st.cache_resource
-def load_assets():
+def load_model():
+    """Loads only the Model (Encoders are not needed for One-Hot logic)."""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     possible_dirs = [
@@ -56,29 +56,18 @@ def load_assets():
     ]
     
     model_path = None
-    encoder_path = None
 
     for d in possible_dirs:
         m_p = os.path.join(d, 'crop_recomender.joblib')
-        e_p = os.path.join(d, 'all_encoders.joblib')
-        if os.path.exists(m_p): model_path = m_p
-        if os.path.exists(e_p): encoder_path = e_p
-    
-    assets = {}
+        if os.path.exists(m_p): 
+            model_path = m_p
+            break
     
     if model_path:
-        assets['model'] = joblib.load(model_path)
+        return joblib.load(model_path)
     else:
         st.error("🚨 Critical Error: 'crop_recomender.joblib' not found.")
         return None
-
-    if encoder_path:
-        assets['encoders'] = joblib.load(encoder_path)
-    else:
-        st.error("🚨 Critical Error: 'all_encoders.joblib' not found.")
-        return None
-            
-    return assets
 
 # --- HELPER FUNCTIONS ---
 def get_season_clean(month_name):
@@ -166,7 +155,7 @@ def get_weather_data():
 
 # --- MAIN APP UI ---
 
-assets = load_assets()
+model = load_model()
 weather_df = get_weather_data()
 
 st.title("🌾 Smart Kitchen Garden Advisor")
@@ -202,69 +191,85 @@ if weather_df is not None and state_input in weather_df['State'].values:
     c3.metric("Humidity", f"{state_data['humidity_pct']:.0f}%")
     c4.metric("VPD", f"{state_data['VPD']:.2f} kPa")
 
-    if predict_btn and assets:
-        model = assets['model']
-        encoders = assets['encoders']
+    if predict_btn and model:
+        # --- 1. Get Model's Expected Columns ---
+        # The model knows what 44 columns it was trained on.
+        try:
+            if hasattr(model, 'feature_names_in_'):
+                model_cols = model.feature_names_in_
+            else:
+                model_cols = model.get_booster().feature_names
+        except:
+            st.error("🚨 Critical Error: Could not retrieve feature names from the model.")
+            st.stop()
 
+        # --- 2. Create a "Zero" DataFrame ---
+        # Create a single row with all 44 columns initialized to 0
+        input_df = pd.DataFrame(0, index=[0], columns=model_cols)
+
+        # --- 3. Fill Numerical Values ---
         current_month = datetime.now().strftime("%B")
-        
-        # 1. Get Clean Season Name
         clean_season = get_season_clean(current_month)
         
+        # Conversions
         n_sq = N_ha / HA_TO_SQFT
         p_sq = P_ha / HA_TO_SQFT
         k_sq = K_ha / HA_TO_SQFT
+
+        # Helper to safely set column if it exists
+        def safe_set(col_name, value):
+            if col_name in input_df.columns:
+                input_df[col_name] = value
+
+        # Fill known numerical columns
+        safe_set('Area', area_sqft)
+        safe_set('Annual_Rainfall', state_data['Annual_Rainfall'])
+        safe_set('Avg_Temperature', state_data['Avg_Temperature'])
+        safe_set('humidity_pct', state_data['humidity_pct'])
+        safe_set('soil_N_kg_sq_foot', n_sq)
+        safe_set('soil_P_kg_sq_foot', p_sq)
+        safe_set('soil_K_kg_sq_foot', k_sq)
+        safe_set('soil_pH', ph)
+
+        # --- 4. Fill Categorical (One-Hot) Values ---
         
+        # A. Handle Season (Fuzzy Match to handle spaces)
+        clean_season_str = clean_season.strip().lower()
+        season_found = False
+        
+        for col in model_cols:
+            # Check if column is a Season column AND matches our season
+            if "season" in col.lower() and clean_season_str in col.lower():
+                input_df[col] = 1
+                season_found = True
+                break 
+        
+        if not season_found:
+             st.warning(f"⚠️ Warning: Could not find a model column for season '{clean_season}'.")
+
+        # B. Handle State (Fuzzy Match)
+        clean_state_str = state_input.strip().lower()
+        state_found = False
+        
+        for col in model_cols:
+            if "state" in col.lower() and clean_state_str in col.lower():
+                input_df[col] = 1
+                state_found = True
+                break
+                
+        if not state_found:
+             st.error(f"❌ Matching Error: The model does not have a column for '{state_input}'.")
+             st.write("Debug: Model expects these state columns:", [c for c in model_cols if 'state' in c.lower()])
+             st.stop()
+
+        # --- 5. Predict ---
         try:
-            # --- AUTO-SPACER LOGIC (Season) ---
-            valid_seasons = encoders['Season'].classes_
-            
-            # Create map: {'winter': 'Winter     ', 'kharif': 'Kharif     '}
-            season_map = {s.strip().lower(): s for s in valid_seasons}
-            
-            # Convert our clean input to the spaced version
-            clean_key = clean_season.strip().lower()
-            
-            if clean_key in season_map:
-                exact_season_label = season_map[clean_key]
-                season_encoded = encoders['Season'].transform([exact_season_label])[0]
-            else:
-                st.error(f"❌ Season Error: The season '{clean_season}' is not in your training data.")
-                st.write("Available seasons:", valid_seasons)
-                st.stop()
-
-            # --- AUTO-SPACER LOGIC (State) ---
-            valid_states = encoders['State'].classes_
-            state_map = {s.strip().lower(): s for s in valid_states}
-            
-            if state_input.strip().lower() in state_map:
-                exact_state_label = state_map[state_input.strip().lower()]
-                state_encoded = encoders['State'].transform([exact_state_label])[0]
-            else:
-                st.error(f"❌ State Error: '{state_input}' not found in training data.")
-                st.write("Available states:", valid_states)
-                st.stop()
-
-            # Create DataFrame
-            input_df = pd.DataFrame({
-                'Season': [season_encoded],
-                'State': [state_encoded],
-                'Area': [area_sqft],
-                'Annual_Rainfall': [state_data['Annual_Rainfall']],
-                'Avg_Temperature': [state_data['Avg_Temperature']],
-                'humidity_pct': [state_data['humidity_pct']],
-                'soil_N_kg_sq_foot': [n_sq],
-                'soil_P_kg_sq_foot': [p_sq],
-                'soil_K_kg_sq_foot': [k_sq],
-                'soil_pH': [ph]
-            })
-            
             prediction = model.predict(input_df)
             st.success(f"🌱 Recommended Crop: **{prediction[0]}**")
             st.balloons()
-
         except Exception as e:
-            st.error(f"Prediction failed: {e}")
+            st.error(f"Prediction Failed: {e}")
+            st.write("Debug - Input Shape:", input_df.shape)
 
 else:
     st.info("Loading weather data...")
