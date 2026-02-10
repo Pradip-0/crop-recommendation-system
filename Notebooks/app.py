@@ -247,8 +247,42 @@ def get_weather_data():
             return None
     return None
 
+def find_image_file(crop_name, images_dir):
+    """
+    Robustly finds an image file by normalizing crop name and filenames.
+    Ignores case, spaces, and special characters.
+    """
+    if not os.path.exists(images_dir):
+        return None, f"Directory not found: {images_dir}"
+    
+    # Normalize crop name: "Arhar/Tur" -> "arhartur"
+    target_clean = "".join(e for e in crop_name.lower() if e.isalnum())
+    
+    try:
+        all_files = os.listdir(images_dir)
+        # Search for fuzzy match
+        for filename in all_files:
+            if filename.startswith("."): continue
+            
+            file_stem = os.path.splitext(filename)[0]
+            # Normalize filename: "Arhar_Tur.jpg" -> "arhartur"
+            file_clean = "".join(e for e in file_stem.lower() if e.isalnum())
+            
+            # 1. Exact clean match
+            if target_clean == file_clean:
+                return os.path.join(images_dir, filename), "Exact Match"
+            
+            # 2. Substring match (e.g. "potato" inside "potato_harvest")
+            if target_clean in file_clean or file_clean in target_clean:
+                # Prefer exact matches, but accept substring if length is close
+                if len(file_clean) > 3: # Avoid matching short noise
+                    return os.path.join(images_dir, filename), "Partial Match"
+                    
+        return None, f"No match for '{target_clean}' in {len(all_files)} files."
+    except Exception as e:
+        return None, f"Error: {e}"
+
 def get_img_as_base64(file_path):
-    """Converts a binary file to base64 string for HTML embedding."""
     try:
         with open(file_path, "rb") as f:
             data = f.read()
@@ -332,6 +366,14 @@ with st.sidebar:
 
     st.markdown("---")
     predict_btn = st.button("RUN ANALYSIS", type="primary")
+    
+    # --- DEBUG SECTION (Helps fix image issues) ---
+    with st.expander("🛠️ Debug Tools (Images)"):
+        st.write(f"Images Dir: `{IMAGES_DIR}`")
+        if os.path.exists(IMAGES_DIR):
+            st.write("Found Files:", os.listdir(IMAGES_DIR))
+        else:
+            st.error("Images directory NOT found!")
 
 # --- MAIN DASHBOARD LOGIC ---
 
@@ -382,42 +424,15 @@ if weather_df is not None and state_input in weather_df['State'].values:
                     yield_ton_ha = info['yield']
                     yield_kg = (yield_ton_ha * 1000) * (area_sqft / HA_TO_SQFT)
                     
-                    # --- DYNAMIC BACKGROUND IMAGE LOGIC (ROBUST VERSION) ---
+                    # --- NEW ROBUST IMAGE SEARCH ---
+                    img_path, msg = find_image_file(crop_name, IMAGES_DIR)
                     
-                    # 1. Generate variations of filename (Arhar/Tur -> Arhar Tur, Arhar_Tur, etc)
-                    variations = [
-                        crop_name, 
-                        crop_name.replace("/", " "),
-                        crop_name.replace("/", "_"),
-                        crop_name.replace("/", "-"),
-                        crop_name.replace(" ", "_"),
-                        crop_name.replace(" ", "")
-                    ]
-                    # Add lowercase versions
-                    variations.extend([v.lower() for v in variations])
-                    # Unique list
-                    variations = list(set(variations))
-                    
-                    img_path = None
-                    # 2. Robust Search
-                    if os.path.exists(IMAGES_DIR):
-                        for name in variations:
-                            for ext in [".jpg", ".jpeg", ".png", ".webp", ".JPG", ".JPEG", ".PNG"]:
-                                possible_path = os.path.join(IMAGES_DIR, f"{name}{ext}")
-                                if os.path.exists(possible_path):
-                                    img_path = possible_path
-                                    break
-                            if img_path: break
-                    else:
-                        print(f"Warning: Images directory not found at {IMAGES_DIR}")
-
-                    # 3. Construct CSS
-                    banner_style = "background: linear-gradient(90deg, #1b5e20 0%, #2e7d32 100%);" # Default
+                    # Construct CSS
+                    banner_style = "background: linear-gradient(90deg, #1b5e20 0%, #2e7d32 100%);" # Default Green
                     
                     if img_path:
                         img_b64 = get_img_as_base64(img_path)
                         if img_b64:
-                            # Determine mime type roughly
                             mime = "image/png" if img_path.lower().endswith(".png") else "image/jpeg"
                             banner_style = f"""
                                 background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.8)), 
@@ -425,6 +440,8 @@ if weather_df is not None and state_input in weather_df['State'].values:
                                 background-size: cover;
                                 background-position: center;
                             """
+                    else:
+                        print(f"Image Debug: {msg}") # Logs to console
 
                     # 4. Render Banner
                     st.markdown(f"""
