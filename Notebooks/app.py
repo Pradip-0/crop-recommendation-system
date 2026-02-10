@@ -366,14 +366,6 @@ with st.sidebar:
 
     st.markdown("---")
     predict_btn = st.button("RUN ANALYSIS", type="primary")
-    
-    # --- DEBUG SECTION (Helps fix image issues) ---
-    with st.expander("🛠️ Debug Tools (Images)"):
-        st.write(f"Images Dir: `{IMAGES_DIR}`")
-        if os.path.exists(IMAGES_DIR):
-            st.write("Found Files:", os.listdir(IMAGES_DIR))
-        else:
-            st.error("Images directory NOT found!")
 
 # --- MAIN DASHBOARD LOGIC ---
 
