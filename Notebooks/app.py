@@ -9,18 +9,16 @@ from datetime import datetime, date
 st.set_page_config(page_title="AgriSmart Advisor", page_icon="🌱", layout="wide")
 
 # --- PATH CONFIGURATION ---
-# 1. Identify where app.py is located
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# 2. Identify the Root of the repo (one level up from Notebooks)
-root_dir = os.path.dirname(current_dir)
-
-# 3. Define paths relative to the Root
+root_dir = os.path.dirname(current_dir) # Go up one level
 CACHE_FILE_PATH = os.path.join(root_dir, "daily_weather_cache.csv")
 MODELS_DIR = os.path.join(root_dir, "Models")
 
-HA_TO_SQFT = 107639.0  # Conversion factor
+HA_TO_SQFT = 107639.0 
 
-# --- STATE COORDINATES ---
+# --- DATA DEFINITIONS ---
+
+# 1. STATES (Sorted Alphabetically - Critical for One-Hot Encoding order)
 state_coords = {
     'Andhra Pradesh': (15.91, 79.74), 'Arunachal Pradesh': (28.21, 94.72),
     'Assam': (26.20, 92.93), 'Bihar': (25.09, 85.31), 'Chhattisgarh': (21.27, 81.86),
@@ -39,26 +37,24 @@ state_coords = {
     'West Bengal': (22.98, 87.85)
 }
 
-# --- SEASON MAPPING ---
+# 2. SEASONS (Sorted Alphabetically - Critical for One-Hot Encoding order)
 season_months = {
+    "Autumn": [], 
     "Kharif": ["July", "August", "September", "October"], 
     "Rabi": ["November", "December"],
-    "Winter": ["January", "February"], 
     "Summer": ["March", "April", "May", "June"],
-    "Autumn": [], 
-    "Whole Year": [] 
+    "Whole Year": [],
+    "Winter": ["January", "February"]
 }
 
 # --- ASSET LOADING ---
 @st.cache_resource
 def load_assets():
-    """Loads the Model and the Target Label Encoder."""
     model_path = os.path.join(MODELS_DIR, 'crop_recomender.joblib')
     le_path = os.path.join(MODELS_DIR, 'label_encoder.joblib') 
 
     assets = {}
-
-    # 1. Load Model
+    
     if os.path.exists(model_path):
         try:
             assets['model'] = joblib.load(model_path)
@@ -66,7 +62,7 @@ def load_assets():
              st.error(f"🚨 Error loading model: {e}")
              return None
     else:
-        # Fallback check current dir
+        # Fallback for local testing
         local_path = os.path.join(current_dir, 'crop_recomender.joblib')
         if os.path.exists(local_path):
              assets['model'] = joblib.load(local_path)
@@ -74,7 +70,6 @@ def load_assets():
             st.error(f"🚨 Model not found at: `{model_path}`")
             return None
 
-    # 2. Load Target Label Encoder
     if os.path.exists(le_path):
         try:
             assets['target_le'] = joblib.load(le_path)
@@ -99,37 +94,33 @@ def get_weather_data():
     if os.path.exists(CACHE_FILE_PATH):
         try:
             return pd.read_csv(CACHE_FILE_PATH)
-        except Exception as e:
-            st.warning(f"Error reading cache: {e}")
+        except:
             return None
-    else:
-        st.warning(f"Weather Cache not found at {CACHE_FILE_PATH}")
-        return None
+    return None
 
-def get_model_features(model):
-    """Safely retrieves feature names, or returns a fallback list if missing."""
-    try:
-        if hasattr(model, 'feature_names_in_'):
-            return list(model.feature_names_in_)
-        elif hasattr(model, 'get_booster'):
-            return model.get_booster().feature_names
-    except:
-        pass
-    
-    # --- FALLBACK FEATURE LIST (44 Features) ---
-    # This list allows the app to run even if the model file doesn't have metadata.
-    # It assumes the standard Alphabetical One-Hot Encoding order.
-    return [
-        'Area', 'Annual_Rainfall', 'Fertilizer', 'Pesticide', 'Yield', 'Avg_Temperature', 
-        'Season_Autumn', 'Season_Kharif', 'Season_Rabi', 'Season_Summer', 'Season_Whole Year', 'Season_Winter',
-        'State_Andhra Pradesh', 'State_Arunachal Pradesh', 'State_Assam', 'State_Bihar', 'State_Chhattisgarh', 
-        'State_Delhi', 'State_Goa', 'State_Gujarat', 'State_Haryana', 'State_Himachal Pradesh', 
-        'State_Jammu and Kashmir', 'State_Jharkhand', 'State_Karnataka', 'State_Kerala', 'State_Madhya Pradesh', 
-        'State_Maharashtra', 'State_Manipur', 'State_Meghalaya', 'State_Mizoram', 'State_Nagaland', 
-        'State_Odisha', 'State_Puducherry', 'State_Punjab', 'State_Rajasthan', 'State_Sikkim', 
-        'State_Tamil Nadu', 'State_Telangana', 'State_Tripura', 'State_Uttar Pradesh', 'State_Uttarakhand', 
-        'State_West Bengal'
+def generate_manual_features():
+    """
+    Manually constructs the 44 feature names in the exact order 
+    Pandas get_dummies() would produce.
+    Order: Numerical Columns + Sorted Categorical Columns
+    """
+    # 1. Numerical Columns (8 cols)
+    # MUST match the user provided list order or typical dataframe order
+    num_cols = [
+        'Area', 'Annual_Rainfall', 'Avg_Temperature', 'humidity_pct', 
+        'soil_N_kg_sq_foot', 'soil_P_kg_sq_foot', 'soil_K_kg_sq_foot', 'soil_pH'
     ]
+    
+    # 2. Season Columns (Sorted Alphabetically)
+    # Expected: Season_Autumn, Season_Kharif, Season_Rabi...
+    season_cols = [f"Season_{s}" for s in sorted(season_months.keys())]
+    
+    # 3. State Columns (Sorted Alphabetically)
+    # Expected: State_Andhra Pradesh, State_Arunachal Pradesh...
+    state_cols = [f"State_{s}" for s in sorted(state_coords.keys())]
+    
+    # Combined List (44 cols total)
+    return num_cols + season_cols + state_cols
 
 # --- MAIN APP UI ---
 
@@ -175,70 +166,75 @@ if weather_df is not None and state_input in weather_df['State'].values:
         model = assets['model']
         target_le = assets.get('target_le')
 
-        # 1. Get Features (Dynamic or Fallback)
-        model_cols = get_model_features(model)
-        
-        # 2. Create Data Frame
-        # Using np.zeros first to avoid "DataFrame constructor" errors
+        # --- 1. Get Features (MANUAL MODE) ---
+        # We assume the user's list implies these 44 columns
+        model_cols = generate_manual_features()
+
+        # --- 2. Create Data Frame ---
+        # Explicitly create zero-filled array first
         data_array = np.zeros((1, len(model_cols)))
         input_df = pd.DataFrame(data_array, columns=model_cols)
 
-        # 3. Prepare Values
+        # --- 3. Prepare Values ---
         current_month = datetime.now().strftime("%B")
         clean_season = get_season_clean(current_month)
         
-        # Unit Conversions
+        # Conversions
         n_sq = N_ha / HA_TO_SQFT
         p_sq = P_ha / HA_TO_SQFT
         k_sq = K_ha / HA_TO_SQFT
 
-        # 4. Fill Numerical Columns (Mapping UI inputs to Model inputs)
-        # Note: If your model uses 'Fertilizer', we map N+P+K to it as an approximation
-        # or use specific columns if available.
-        def safe_set(col, val):
-            if col in input_df.columns: input_df[col] = val
-        
-        safe_set('Area', area_sqft)
-        safe_set('Annual_Rainfall', state_data['Annual_Rainfall'])
-        safe_set('Avg_Temperature', state_data['Avg_Temperature'])
-        
-        # Map User Inputs to likely model columns
-        safe_set('N', n_sq)
-        safe_set('P', p_sq)
-        safe_set('K', k_sq)
-        safe_set('Fertilizer', n_sq + p_sq + k_sq) # Approximate if single col
-        safe_set('pH', ph)
-        
-        # 5. Fill Categorical (One-Hot)
-        # Fuzzy match season
-        clean_season_str = clean_season.strip().lower()
-        season_found = False
-        for col in model_cols:
-            if "season" in col.lower() and clean_season_str in col.lower():
-                input_df[col] = 1
-                season_found = True
-                break
-        if not season_found:
-             # Fallback to Whole Year if specific season missing
-             for col in model_cols:
-                 if "whole year" in col.lower():
-                     input_df[col] = 1
-                     break
+        # --- 4. Fill Numerical Columns ---
+        # We fill the 8 numerical columns we know exist
+        input_df['Area'] = area_sqft
+        input_df['Annual_Rainfall'] = state_data['Annual_Rainfall']
+        input_df['Avg_Temperature'] = state_data['Avg_Temperature']
+        input_df['humidity_pct'] = state_data['humidity_pct']
+        input_df['soil_N_kg_sq_foot'] = n_sq
+        input_df['soil_P_kg_sq_foot'] = p_sq
+        input_df['soil_K_kg_sq_foot'] = k_sq
+        input_df['soil_pH'] = ph
 
-        # Fuzzy match state
-        clean_state_str = state_input.strip().lower()
-        state_found = False
-        for col in model_cols:
-            if "state" in col.lower() and clean_state_str in col.lower():
+        # --- 5. Fill Categorical (One-Hot) ---
+        
+        # A. Fill Season
+        # Logic: Find column named "Season_Winter" and set to 1
+        clean_season_str = clean_season.strip() 
+        season_col_name = f"Season_{clean_season_str}"
+        
+        # Fuzzy match to handle "Whole Year " spaces if they exist in column names
+        season_set = False
+        for col in input_df.columns:
+            if col.strip() == season_col_name:
                 input_df[col] = 1
-                state_found = True
+                season_set = True
                 break
         
-        if not state_found:
-             st.error(f"❌ State '{state_input}' not found in model columns.")
+        if not season_set:
+            # Try finding it with fuzzy matching (ignoring case/spaces)
+            for col in input_df.columns:
+                if f"season_{clean_season_str.lower()}" in col.lower():
+                    input_df[col] = 1
+                    season_set = True
+                    break
+        
+        if not season_set:
+            st.warning(f"⚠️ Warning: Season '{clean_season}' not found in model columns. Using default.")
+
+        # B. Fill State
+        state_col_name = f"State_{state_input}"
+        state_set = False
+        for col in input_df.columns:
+            if col == state_col_name:
+                input_df[col] = 1
+                state_set = True
+                break
+        
+        if not state_set:
+             st.error(f"❌ Error: Model missing column for '{state_input}'.")
              st.stop()
 
-        # 6. Predict
+        # --- 6. Predict ---
         try:
             prediction_idx = model.predict(input_df)[0]
             
@@ -255,7 +251,8 @@ if weather_df is not None and state_input in weather_df['State'].values:
             
         except Exception as e:
             st.error(f"Prediction Error: {e}")
-            st.write("Debug info: Model expects:", len(model_cols), "features.")
+            st.write("Debug: Model expects", len(model_cols), "columns.")
+            st.write("First 10 columns generated:", model_cols[:10])
 
 elif weather_df is None:
-    st.info("Loading weather data...")
+    st.info("Loading weather data... (If this takes too long, check if daily_weather_cache.csv exists in the root folder)")
