@@ -137,12 +137,23 @@ with st.sidebar:
     area = st.number_input("Enter area in square foot", min_value=0, value=1000)
     
     st.divider()
-    st.subheader("🧪 Soil Nutrients (Manual)")
+    st.subheader("🧪 Soil Nutrients")
+    # --- HELP GUIDE ---
+    with st.expander("ℹ️ How to find N, P, K values?"):
+        st.markdown("""
+        **Option 1: Search Online**
+        * Google: *"Average soil NPK level in [Your District/State]"*
+        * Look for values in **kg/hectare**.
+        * *Example:* "Nitrogen: 150 kg/ha"
+        
+        > **Note:** Enter the values exactly as shown (e.g., 160). 
+        > We automatically convert them to *per square foot* for you!
+        """)
     # Manual NPK inputs as requested
     N = st.number_input("Nitrogen (N)", min_value=0, value=70)
     P = st.number_input("Phosphorus (P)", min_value=0, value=40)
     K = st.number_input("Potassium (K)", min_value=0, value=40)
-#    ph = st.slider("Soil pH Level", 4.0, 9.5, 6.5)
+    ph = st.slider("Soil pH Level", 4.0, 9.5, 6.5)
 
 
 # --- MAIN LOGIC ---
@@ -162,6 +173,7 @@ if state_input in state_coords:
     
     if vpd > 1.2:
         st.warning(f"High Vapor Pressure Deficit ({vpd:.2f} kPa). High plant water stress detected.")
+
 
 
 
