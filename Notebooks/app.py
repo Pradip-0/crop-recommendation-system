@@ -10,41 +10,43 @@ st.set_page_config(page_title="AgriSmart Advisor", page_icon="🌱", layout="wid
 
 # --- PATH CONFIGURATION ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(current_dir) # Go up one level
+root_dir = os.path.dirname(current_dir)
 CACHE_FILE_PATH = os.path.join(root_dir, "daily_weather_cache.csv")
 MODELS_DIR = os.path.join(root_dir, "Models")
 
 HA_TO_SQFT = 107639.0 
 
-# --- DATA DEFINITIONS ---
+# --- EXACT DATA LISTS (FROM USER) ---
 
-# 1. STATES (Sorted Alphabetically - Critical for One-Hot Encoding order)
-state_coords = {
-    'Andhra Pradesh': (15.91, 79.74), 'Arunachal Pradesh': (28.21, 94.72),
-    'Assam': (26.20, 92.93), 'Bihar': (25.09, 85.31), 'Chhattisgarh': (21.27, 81.86),
-    'Delhi': (28.61, 77.20), 'Goa': (15.29, 74.12), 'Gujarat': (22.25, 71.19),
-    'Haryana': (29.05, 76.08), 'Himachal Pradesh': (31.10, 77.17),
-    'Jammu And Kashmir': (33.77, 76.57), 'Jharkhand': (23.61, 85.27),
-    'Karnataka': (15.31, 75.71), 'Kerala': (10.85, 76.27),
-    'Madhya Pradesh': (23.47, 77.94), 'Maharashtra': (19.75, 75.71),
-    'Manipur': (24.66, 93.90), 'Meghalaya': (25.46, 91.36),
-    'Mizoram': (23.16, 92.93), 'Nagaland': (26.15, 94.56),
-    'Odisha': (20.95, 85.09), 'Puducherry': (11.94, 79.80),
-    'Punjab': (31.14, 75.34), 'Rajasthan': (27.02, 74.21),
-    'Sikkim': (27.53, 88.51), 'Tamil Nadu': (11.12, 78.65),
-    'Telangana': (18.11, 79.01), 'Tripura': (23.94, 91.98),
-    'Uttar Pradesh': (26.84, 80.94), 'Uttarakhand': (30.06, 79.01),
-    'West Bengal': (22.98, 87.85)
+# 1. STATES (30 States)
+# We use this list for the UI dropdown
+UI_STATES = sorted([
+    'Assam', 'Karnataka', 'Kerala', 'Meghalaya', 'West Bengal',
+    'Puducherry', 'Goa', 'Andhra Pradesh', 'Tamil Nadu', 'Odisha',
+    'Bihar', 'Gujarat', 'Madhya Pradesh', 'Maharashtra', 'Mizoram',
+    'Punjab', 'Uttar Pradesh', 'Haryana', 'Himachal Pradesh',
+    'Tripura', 'Nagaland', 'Chhattisgarh', 'Uttarakhand', 'Jharkhand',
+    'Delhi', 'Manipur', 'Jammu and Kashmir', 'Telangana',
+    'Arunachal Pradesh', 'Sikkim'
+])
+
+# 2. SEASONS (6 Seasons with exact spaces)
+# Key = Clean Name (for UI), Value = Model Name (with spaces)
+SEASON_MAPPING = {
+    "Autumn": "Autumn     ",
+    "Kharif": "Kharif     ",
+    "Rabi": "Rabi       ",
+    "Summer": "Summer     ",
+    "Whole Year": "Whole Year ",
+    "Winter": "Winter     "
 }
 
-# 2. SEASONS (Sorted Alphabetically - Critical for One-Hot Encoding order)
-season_months = {
-    "Autumn": [], 
-    "Kharif": ["July", "August", "September", "October"], 
-    "Rabi": ["November", "December"],
-    "Summer": ["March", "April", "May", "June"],
-    "Whole Year": [],
-    "Winter": ["January", "February"]
+# Map months to Clean Season Names
+MONTH_TO_SEASON = {
+    "July": "Kharif", "August": "Kharif", "September": "Kharif", "October": "Kharif",
+    "November": "Rabi", "December": "Rabi",
+    "January": "Winter", "February": "Winter",
+    "March": "Summer", "April": "Summer", "May": "Summer", "June": "Summer"
 }
 
 # --- ASSET LOADING ---
@@ -80,10 +82,7 @@ def load_assets():
 
 # --- HELPER FUNCTIONS ---
 def get_season_clean(month_name):
-    for season, months in season_months.items():
-        if month_name in months:
-            return season
-    return "Summer"
+    return MONTH_TO_SEASON.get(month_name, "Summer")
 
 def calculate_vpd(temp_c, rh_pct):
     svp = 0.61078 * np.exp((17.27 * temp_c) / (temp_c + 237.3))
@@ -100,26 +99,23 @@ def get_weather_data():
 
 def generate_manual_features():
     """
-    Manually constructs the 44 feature names in the exact order 
-    Pandas get_dummies() would produce.
-    Order: Numerical Columns + Sorted Categorical Columns
+    Constructs the 44 feature names in the exact order the model expects.
+    Order: Numerical -> Sorted Seasons -> Sorted States
     """
     # 1. Numerical Columns (8 cols)
-    # MUST match the user provided list order or typical dataframe order
     num_cols = [
         'Area', 'Annual_Rainfall', 'Avg_Temperature', 'humidity_pct', 
         'soil_N_kg_sq_foot', 'soil_P_kg_sq_foot', 'soil_K_kg_sq_foot', 'soil_pH'
     ]
     
-    # 2. Season Columns (Sorted Alphabetically)
-    # Expected: Season_Autumn, Season_Kharif, Season_Rabi...
-    season_cols = [f"Season_{s}" for s in sorted(season_months.keys())]
+    # 2. Season Columns (Sorted Alphabetically by their messy names)
+    # This matches pd.get_dummies() behavior
+    raw_seasons = list(SEASON_MAPPING.values()) # ['Autumn     ', 'Kharif     ', etc]
+    season_cols = [f"Season_{s}" for s in sorted(raw_seasons)]
     
     # 3. State Columns (Sorted Alphabetically)
-    # Expected: State_Andhra Pradesh, State_Arunachal Pradesh...
-    state_cols = [f"State_{s}" for s in sorted(state_coords.keys())]
+    state_cols = [f"State_{s}" for s in sorted(UI_STATES)]
     
-    # Combined List (44 cols total)
     return num_cols + season_cols + state_cols
 
 # --- MAIN APP UI ---
@@ -132,7 +128,9 @@ st.markdown("Your AI-powered guide for home farming.")
 
 with st.sidebar:
     st.header("1. Location & Area")
-    state_input = st.selectbox("Select State", sorted(list(state_coords.keys())))
+    # Coordinates mapping (Subset for your 30 states)
+    # We map the UI_STATES to coordinates manually if needed, or rely on cache
+    state_input = st.selectbox("Select State", UI_STATES)
     area_sqft = st.number_input("Garden Area (sq ft)", min_value=10, value=100)
 
     st.divider()
@@ -166,18 +164,17 @@ if weather_df is not None and state_input in weather_df['State'].values:
         model = assets['model']
         target_le = assets.get('target_le')
 
-        # --- 1. Get Features (MANUAL MODE) ---
-        # We assume the user's list implies these 44 columns
+        # --- 1. Get Features ---
         model_cols = generate_manual_features()
 
         # --- 2. Create Data Frame ---
-        # Explicitly create zero-filled array first
         data_array = np.zeros((1, len(model_cols)))
         input_df = pd.DataFrame(data_array, columns=model_cols)
 
         # --- 3. Prepare Values ---
         current_month = datetime.now().strftime("%B")
-        clean_season = get_season_clean(current_month)
+        clean_season = get_season_clean(current_month) # e.g. "Winter"
+        messy_season = SEASON_MAPPING.get(clean_season, "Whole Year ") # e.g. "Winter     "
         
         # Conversions
         n_sq = N_ha / HA_TO_SQFT
@@ -185,7 +182,6 @@ if weather_df is not None and state_input in weather_df['State'].values:
         k_sq = K_ha / HA_TO_SQFT
 
         # --- 4. Fill Numerical Columns ---
-        # We fill the 8 numerical columns we know exist
         input_df['Area'] = area_sqft
         input_df['Annual_Rainfall'] = state_data['Annual_Rainfall']
         input_df['Avg_Temperature'] = state_data['Avg_Temperature']
@@ -198,40 +194,24 @@ if weather_df is not None and state_input in weather_df['State'].values:
         # --- 5. Fill Categorical (One-Hot) ---
         
         # A. Fill Season
-        # Logic: Find column named "Season_Winter" and set to 1
-        clean_season_str = clean_season.strip() 
-        season_col_name = f"Season_{clean_season_str}"
+        # We construct the column name using the Messy Season string
+        season_col_name = f"Season_{messy_season}"
         
-        # Fuzzy match to handle "Whole Year " spaces if they exist in column names
-        season_set = False
-        for col in input_df.columns:
-            if col.strip() == season_col_name:
-                input_df[col] = 1
-                season_set = True
-                break
-        
-        if not season_set:
-            # Try finding it with fuzzy matching (ignoring case/spaces)
-            for col in input_df.columns:
-                if f"season_{clean_season_str.lower()}" in col.lower():
-                    input_df[col] = 1
-                    season_set = True
-                    break
-        
-        if not season_set:
-            st.warning(f"⚠️ Warning: Season '{clean_season}' not found in model columns. Using default.")
+        if season_col_name in input_df.columns:
+            input_df[season_col_name] = 1
+        else:
+            st.error(f"❌ Error: Could not find column '{season_col_name}'.")
+            st.write("Debug: Available Season Cols:", [c for c in input_df.columns if "Season" in c])
+            st.stop()
 
         # B. Fill State
         state_col_name = f"State_{state_input}"
-        state_set = False
-        for col in input_df.columns:
-            if col == state_col_name:
-                input_df[col] = 1
-                state_set = True
-                break
         
-        if not state_set:
+        if state_col_name in input_df.columns:
+            input_df[state_col_name] = 1
+        else:
              st.error(f"❌ Error: Model missing column for '{state_input}'.")
+             st.write("Debug: Available State Cols:", [c for c in input_df.columns if "State" in c])
              st.stop()
 
         # --- 6. Predict ---
@@ -252,7 +232,6 @@ if weather_df is not None and state_input in weather_df['State'].values:
         except Exception as e:
             st.error(f"Prediction Error: {e}")
             st.write("Debug: Model expects", len(model_cols), "columns.")
-            st.write("First 10 columns generated:", model_cols[:10])
 
 elif weather_df is None:
-    st.info("Loading weather data... (If this takes too long, check if daily_weather_cache.csv exists in the root folder)")
+    st.info("Loading weather data... (Please ensure the daily update script has run)")
