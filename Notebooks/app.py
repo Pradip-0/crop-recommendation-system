@@ -12,10 +12,9 @@ st.set_page_config(page_title="AgriSmart Advisor", page_icon="🌱", layout="wid
 
 # --- CONSTANTS ---
 CACHE_FILE = "daily_weather_cache.csv"
-HA_TO_SQFT = 107639.0  # Conversion factor (Hectare to Sq Ft)
+HA_TO_SQFT = 107639.0  # Conversion factor
 
 # --- STATE COORDINATES ---
-# Ensure these names match EXACTLY with your training data (spelling/capitalization)
 state_coords = {
     'Andhra Pradesh': (15.91, 79.74), 'Arunachal Pradesh': (28.21, 94.72),
     'Assam': (26.20, 92.93), 'Bihar': (25.09, 85.31), 'Chhattisgarh': (21.27, 81.86),
@@ -35,24 +34,25 @@ state_coords = {
 }
 
 # --- SEASON MAPPING ---
+# We use clean names here. The code later adds the spaces to match your encoder.
 season_months = {
-    "Kharif": ["July", "August"],        
-    "Autumn": ["September", "October"], 
-    "Rabi": ["November", "December"],    
-    "Winter": ["January", "February"],    
-    "Summer": ["March", "April", "May", "June"] 
+    "Kharif": ["July", "August", "September", "October"], 
+    "Rabi": ["November", "December"],
+    "Winter": ["January", "February"], 
+    "Summer": ["March", "April", "May", "June"],
+    "Autumn": [], 
+    "Whole Year": [] 
 }
 
 # --- ASSET LOADING ---
 @st.cache_resource
 def load_assets():
-    """Loads the Model and Encoders from the Models folder."""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     possible_dirs = [
-        os.path.join(base_dir, 'Models'), # Nested in Notebooks/
-        os.path.join(os.path.dirname(base_dir), 'Models'), # In Root
-        'Models' # Relative
+        os.path.join(base_dir, 'Models'), 
+        os.path.join(os.path.dirname(base_dir), 'Models'), 
+        'Models' 
     ]
     
     model_path = None
@@ -66,24 +66,22 @@ def load_assets():
     
     assets = {}
     
-    # Load Model
     if model_path:
         assets['model'] = joblib.load(model_path)
     else:
-        st.error("🚨 Critical Error: 'crop_recomender.joblib' not found in Models folder.")
+        st.error("🚨 Critical Error: 'crop_recomender.joblib' not found.")
         return None
 
-    # Load Encoders
     if encoder_path:
         assets['encoders'] = joblib.load(encoder_path)
     else:
-        st.error("🚨 Critical Error: 'all_encoders.joblib' not found in Models folder.")
+        st.error("🚨 Critical Error: 'all_encoders.joblib' not found.")
         return None
             
     return assets
 
 # --- HELPER FUNCTIONS ---
-def get_season(month_name):
+def get_season_clean(month_name):
     for season, months in season_months.items():
         if month_name in months:
             return season
@@ -96,14 +94,12 @@ def calculate_vpd(temp_c, rh_pct):
 
 # --- WEATHER DATA FETCHING ---
 def fetch_all_states_batch():
-    """Fetches weather data for all states and saves to CSV."""
-    with st.spinner("🔄 Updating climate database for today... (This happens once daily)"):
+    with st.spinner("🔄 Updating climate database for today..."):
         end_year = datetime.now().year - 1
         start_year = end_year - 4
         month_num = datetime.now().month
 
         try:
-            # Fetch IMD data
             rain_data = imd.get_data('rain', start_year, end_year, fn_format='yearwise')
             tmax_data = imd.get_data('tmax', start_year, end_year, fn_format='yearwise')
             tmin_data = imd.get_data('tmin', start_year, end_year, fn_format='yearwise')
@@ -121,12 +117,10 @@ def fetch_all_states_batch():
         
         for i, (state, (lat, lon)) in enumerate(state_coords.items()):
             try:
-                # IMD Data Slicing
                 m_rain = ds_rain.sel(time=ds_rain.time.dt.month == month_num).sel(lat=lat, lon=lon, method='nearest')
                 m_tmax = ds_tmax.sel(time=ds_tmax.time.dt.month == month_num).sel(lat=lat, lon=lon, method='nearest')
                 m_tmin = ds_tmin.sel(time=ds_tmin.time.dt.month == month_num).sel(lat=lat, lon=lon, method='nearest')
 
-                # Calculate Weighted Temp
                 yearly_means = []
                 for y in range(start_year, end_year + 1):
                     val = (m_tmax.sel(time=m_tmax.time.dt.year == y).tmax.mean() + 
@@ -134,12 +128,10 @@ def fetch_all_states_batch():
                     yearly_means.append(float(val))
                 weighted_temp = np.dot(yearly_means, [0.05, 0.10, 0.15, 0.30, 0.40])
 
-                # Calculate Rain Stats
                 total_rain_5yr = float(m_rain.rain.sum())
                 avg_monthly_rain = total_rain_5yr / 5
                 rainy_days = (m_rain.rain > 2.5).sum().item() / 5
 
-                # Humidity (Using default or API if needed)
                 avg_humidity = 60.0 
                 vpd = calculate_vpd(weighted_temp, avg_humidity)
 
@@ -153,34 +145,27 @@ def fetch_all_states_batch():
                     "Date_Updated": date.today()
                 })
             except:
-                pass # Skip state if data error
-            
+                pass
             progress_bar.progress((i + 1) / total_states)
 
-        # Save to Cache
         df_cache = pd.DataFrame(all_data)
         df_cache.to_csv(CACHE_FILE, index=False)
         progress_bar.empty()
         return df_cache
 
 def get_weather_data():
-    """Smart loader: Checks cache first."""
     if os.path.exists(CACHE_FILE):
         try:
             df = pd.read_csv(CACHE_FILE)
-            # Check if cache is from today
             if pd.to_datetime(df['Date_Updated'].iloc[0]).date() == date.today():
                 return df
         except:
-            pass # Cache corrupted
-    
-    # If no cache or old cache, run batch fetch
+            pass
     st.warning("⚠️ First run of the day: Fetching fresh climate data...")
     return fetch_all_states_batch()
 
 # --- MAIN APP UI ---
 
-# Load Assets
 assets = load_assets()
 weather_df = get_weather_data()
 
@@ -195,85 +180,72 @@ with st.sidebar:
     st.divider()
     st.header("2. Soil Details")
     
-    # Help Guide
     with st.expander("ℹ️ How to find N, P, K values?"):
-        st.markdown("""
-        **Option 1: Search Online**
-        * Look for values in **kg/hectare** (standard agricultural unit).
-        """)
-
-    # User inputs kg/ha
-    N_ha = st.number_input("Nitrogen (N)", value=140, help="Enter value in kg/ha")
-    P_ha = st.number_input("Phosphorus (P)", value=40, help="Enter value in kg/ha")
-    K_ha = st.number_input("Potassium (K)", value=40, help="Enter value in kg/ha")
+        st.markdown("**Enter values in kg/hectare.** We will convert them for you.")
+    
+    N_ha = st.number_input("Nitrogen (N)", value=140)
+    P_ha = st.number_input("Phosphorus (P)", value=40)
+    K_ha = st.number_input("Potassium (K)", value=40)
     ph = st.slider("Soil pH", 4.0, 9.5, 6.5)
 
     predict_btn = st.button("Get Recommendation", type="primary")
 
-# --- MAIN DASHBOARD LOGIC ---
+# --- MAIN LOGIC ---
 
 if weather_df is not None and state_input in weather_df['State'].values:
-    # 1. Get Climate Data
     state_data = weather_df[weather_df['State'] == state_input].iloc[0]
     
-    # 2. Display Metrics
     st.subheader(f"Current Climate Analysis: {state_input}")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Temperature", f"{state_data['Avg_Temperature']:.1f}°C")
     c2.metric("Rainfall", f"{state_data['Annual_Rainfall']:.1f}mm")
     c3.metric("Humidity", f"{state_data['humidity_pct']:.0f}%")
-    c4.metric("VPD", f"{state_data['VPD']:.2f} kPa", delta="High Stress" if state_data['VPD'] > 1.2 else "Normal", delta_color="inverse")
+    c4.metric("VPD", f"{state_data['VPD']:.2f} kPa")
 
-    # 3. PREDICTION PIPELINE
     if predict_btn and assets:
         model = assets['model']
-        encoders = assets['encoders'] # Expected format: {'Season': LeObject, 'State': LeObject}
+        encoders = assets['encoders']
 
         current_month = datetime.now().strftime("%B")
-        current_season = get_season(current_month)
         
-        # A. Unit Conversion (kg/ha -> kg/sq_ft)
+        # 1. Get Clean Season Name
+        clean_season = get_season_clean(current_month)
+        
         n_sq = N_ha / HA_TO_SQFT
         p_sq = P_ha / HA_TO_SQFT
         k_sq = K_ha / HA_TO_SQFT
         
         try:
-            # B. Encode Categorical Columns
+            # --- AUTO-SPACER LOGIC (Season) ---
+            valid_seasons = encoders['Season'].classes_
             
-            # --- START OF ROBUST TRIMMING LOGIC ---
+            # Create map: {'winter': 'Winter     ', 'kharif': 'Kharif     '}
+            season_map = {s.strip().lower(): s for s in valid_seasons}
             
-            # Check 1: Does the encoder exist?
-            if 'State' not in encoders or 'Season' not in encoders:
-                st.error("The loaded 'all_encoders.joblib' file does not contain 'State' or 'Season' keys.")
-                st.stop()
+            # Convert our clean input to the spaced version
+            clean_key = clean_season.strip().lower()
             
-            # Check 2: Robust Matching for STATE
-            # Retrieve all valid states from the model
-            model_states = encoders['State'].classes_
-            
-            # Create a dictionary to map "clean" names to "exact model" names
-            # e.g. {"west bengal": "West Bengal "}
-            state_map = {s.strip().lower(): s for s in model_states}
-            
-            # Clean the user input
-            input_clean = state_input.strip().lower()
-            
-            if input_clean in state_map:
-                # Use the EXACT string the model expects
-                correct_state_name = state_map[input_clean]
-                state_encoded = encoders['State'].transform([correct_state_name])[0]
+            if clean_key in season_map:
+                exact_season_label = season_map[clean_key]
+                season_encoded = encoders['Season'].transform([exact_season_label])[0]
             else:
-                st.error(f"❌ State Error: The state '{state_input}' (trimmed: '{input_clean}') was not found in the training data.")
-                st.write("Valid states known to the model:", model_states)
+                st.error(f"❌ Season Error: The season '{clean_season}' is not in your training data.")
+                st.write("Available seasons:", valid_seasons)
                 st.stop()
 
-            # Check 3: Robust Matching for SEASON
-            season_encoded = encoders['Season'].transform([current_season])[0]
+            # --- AUTO-SPACER LOGIC (State) ---
+            valid_states = encoders['State'].classes_
+            state_map = {s.strip().lower(): s for s in valid_states}
             
-            # --- END OF ROBUST TRIMMING LOGIC ---
-            
-            # C. Create DataFrame
-            # MUST match the exact column order used during training
+            if state_input.strip().lower() in state_map:
+                exact_state_label = state_map[state_input.strip().lower()]
+                state_encoded = encoders['State'].transform([exact_state_label])[0]
+            else:
+                st.error(f"❌ State Error: '{state_input}' not found in training data.")
+                st.write("Available states:", valid_states)
+                st.stop()
+
+            # Create DataFrame
             input_df = pd.DataFrame({
                 'Season': [season_encoded],
                 'State': [state_encoded],
@@ -287,15 +259,10 @@ if weather_df is not None and state_input in weather_df['State'].values:
                 'soil_pH': [ph]
             })
             
-            # D. Predict
             prediction = model.predict(input_df)
-            
-            # E. Output
             st.success(f"🌱 Recommended Crop: **{prediction[0]}**")
             st.balloons()
 
-        except ValueError as e:
-            st.error(f"Encoding Error: {e}")
         except Exception as e:
             st.error(f"Prediction failed: {e}")
 
