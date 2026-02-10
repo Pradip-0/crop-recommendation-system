@@ -154,7 +154,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 CACHE_FILE_PATH = os.path.join(root_dir, "daily_weather_cache.csv")
 MODELS_DIR = os.path.join(root_dir, "Models")
-IMAGES_DIR = os.path.join(root_dir, "data", "Images") # Path to images
+IMAGES_DIR = os.path.join(root_dir, "Data", "Images") # Path to images
 
 HA_TO_SQFT = 107639.0 
 
