@@ -123,13 +123,14 @@ This project uses a Cron Job via GitHub Actions to keep weather data fresh witho
 
 ## 📸 Visuals
 
-(Add screenshots of your dashboard here)
+<img width="1895" height="862" alt="App image" src="https://github.com/user-attachments/assets/e4716dd8-2714-4fb0-a8d9-98d02a5098bb" />
 
 1. The Professional Dashboard
 Real-time climate telemetry and soil input grid in Dark Mode.
 
 2. Prediction Results
 The Result Card shows the recommended crop, expected yield (in kg), and specific care instructions.p
+
 
 
 
