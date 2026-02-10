@@ -46,7 +46,7 @@ season_months = {
 # --- ASSET LOADING ---
 @st.cache_resource
 def load_model():
-    """Loads only the Model (Encoders are not needed for One-Hot logic)."""
+    """Loads only the Model."""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     possible_dirs = [
@@ -193,7 +193,6 @@ if weather_df is not None and state_input in weather_df['State'].values:
 
     if predict_btn and model:
         # --- 1. Get Model's Expected Columns ---
-        # The model knows what 44 columns it was trained on.
         try:
             if hasattr(model, 'feature_names_in_'):
                 model_cols = model.feature_names_in_
@@ -203,9 +202,11 @@ if weather_df is not None and state_input in weather_df['State'].values:
             st.error("🚨 Critical Error: Could not retrieve feature names from the model.")
             st.stop()
 
-        # --- 2. Create a "Zero" DataFrame ---
-        # Create a single row with all 44 columns initialized to 0
-        input_df = pd.DataFrame(0, index=[0], columns=model_cols)
+        # --- 2. Create a "Zero" DataFrame (ROBUST FIX) ---
+        # We explicitly use numpy to create the array of zeros first
+        # This prevents the "DataFrame constructor not properly called" error
+        zeros_array = np.zeros((1, len(model_cols)))
+        input_df = pd.DataFrame(zeros_array, columns=model_cols)
 
         # --- 3. Fill Numerical Values ---
         current_month = datetime.now().strftime("%B")
@@ -238,7 +239,6 @@ if weather_df is not None and state_input in weather_df['State'].values:
         season_found = False
         
         for col in model_cols:
-            # Check if column is a Season column AND matches our season
             if "season" in col.lower() and clean_season_str in col.lower():
                 input_df[col] = 1
                 season_found = True
@@ -255,21 +255,3 @@ if weather_df is not None and state_input in weather_df['State'].values:
             if "state" in col.lower() and clean_state_str in col.lower():
                 input_df[col] = 1
                 state_found = True
-                break
-                
-        if not state_found:
-             st.error(f"❌ Matching Error: The model does not have a column for '{state_input}'.")
-             st.write("Debug: Model expects these state columns:", [c for c in model_cols if 'state' in c.lower()])
-             st.stop()
-
-        # --- 5. Predict ---
-        try:
-            prediction = model.predict(input_df)
-            st.success(f"🌱 Recommended Crop: **{prediction[0]}**")
-            st.balloons()
-        except Exception as e:
-            st.error(f"Prediction Failed: {e}")
-            st.write("Debug - Input Shape:", input_df.shape)
-
-else:
-    st.info("Loading weather data...")
