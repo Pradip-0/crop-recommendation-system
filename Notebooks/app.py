@@ -3,6 +3,7 @@ import joblib
 import os
 import numpy as np
 import pandas as pd
+import base64
 from datetime import datetime
 
 # --- PAGE CONFIGURATION ---
@@ -53,31 +54,46 @@ st.markdown("""
         border-right: 1px solid #303339;
     }
     
-    /* Custom Result Banner */
+    /* Custom Result Banner - Default Style (Overridden by Python if image exists) */
     .result-banner {
-        background: linear-gradient(90deg, #1b5e20 0%, #2e7d32 100%);
         color: white;
-        padding: 25px;
+        padding: 40px 25px; /* Increased padding for better image visibility */
         border-radius: 12px;
         margin-bottom: 25px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         border: 1px solid #43a047;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        position: relative;
+        overflow: hidden;
     }
+    
     .crop-name {
-        font-size: 2.2rem;
+        font-size: 2.5rem;
         font-weight: 800;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+        z-index: 2;
+    }
+    .result-label {
+        font-size: 0.9rem; 
+        opacity: 0.9;
+        text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+        z-index: 2;
+        font-weight: 600;
+        letter-spacing: 1px;
     }
     .match-tag {
-        background-color: rgba(0,0,0,0.3);
-        padding: 5px 15px;
-        border-radius: 20px;
+        background-color: rgba(0,0,0,0.6);
+        backdrop-filter: blur(5px);
+        padding: 8px 20px;
+        border-radius: 30px;
         font-size: 0.9rem;
         text-transform: uppercase;
         letter-spacing: 1px;
-        border: 1px solid rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.4);
+        z-index: 2;
+        font-weight: bold;
     }
 
     /* Advice Cards */
@@ -138,6 +154,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 CACHE_FILE_PATH = os.path.join(root_dir, "daily_weather_cache.csv")
 MODELS_DIR = os.path.join(root_dir, "Models")
+IMAGES_DIR = os.path.join(root_dir, "data", "Images") # Path to images
 
 HA_TO_SQFT = 107639.0 
 
@@ -229,6 +246,15 @@ def get_weather_data():
         except:
             return None
     return None
+
+def get_img_as_base64(file_path):
+    """Converts a binary file to base64 string for HTML embedding."""
+    try:
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except Exception:
+        return None
 
 def generate_manual_features():
     num_cols = [
@@ -356,18 +382,46 @@ if weather_df is not None and state_input in weather_df['State'].values:
                     yield_ton_ha = info['yield']
                     yield_kg = (yield_ton_ha * 1000) * (area_sqft / HA_TO_SQFT)
                     
-                    # 1. Main Banner
+                    # --- DYNAMIC BACKGROUND IMAGE LOGIC ---
+                    # 1. Clean filename (handle slashes like Arhar/Tur -> Arhar_Tur)
+                    safe_crop_name = crop_name.replace("/", "_")
+                    
+                    # 2. Search for image with various extensions
+                    img_path = None
+                    for ext in [".jpg", ".jpeg", ".png", ".webp"]:
+                        possible_path = os.path.join(IMAGES_DIR, f"{safe_crop_name}{ext}")
+                        if os.path.exists(possible_path):
+                            img_path = possible_path
+                            break
+                    
+                    # 3. Construct CSS style
+                    if img_path:
+                        img_b64 = get_img_as_base64(img_path)
+                        if img_b64:
+                            banner_style = f"""
+                                background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.8)), 
+                                url("data:image/png;base64,{img_b64}");
+                                background-size: cover;
+                                background-position: center;
+                            """
+                        else:
+                            banner_style = "background: linear-gradient(90deg, #1b5e20 0%, #2e7d32 100%);"
+                    else:
+                        # Fallback gradient if no image found
+                        banner_style = "background: linear-gradient(90deg, #1b5e20 0%, #2e7d32 100%);"
+
+                    # 4. Render Banner
                     st.markdown(f"""
-                    <div class="result-banner">
+                    <div class="result-banner" style='{banner_style}'>
                         <div>
-                            <div style="font-size: 0.9rem; opacity: 0.9;">OPTIMAL CROP IDENTIFIED</div>
+                            <div class="result-label">OPTIMAL CROP IDENTIFIED</div>
                             <div class="crop-name">{crop_name}</div>
                         </div>
                         <div class="match-tag">{note}</div>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # 2. Detailed Cards
+                    # 5. Detailed Cards
                     col_A, col_B, col_C = st.columns(3)
                     
                     with col_A:
