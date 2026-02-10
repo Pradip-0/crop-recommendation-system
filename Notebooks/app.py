@@ -47,10 +47,8 @@ season_months = {
 @st.cache_resource
 def load_assets():
     """Loads the Model and Encoders from the Models folder."""
-    # Handle different path structures (Cloud vs Local)
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Try finding the Models folder
     possible_dirs = [
         os.path.join(base_dir, 'Models'), # Nested in Notebooks/
         os.path.join(os.path.dirname(base_dir), 'Models'), # In Root
@@ -241,17 +239,38 @@ if weather_df is not None and state_input in weather_df['State'].values:
         
         try:
             # B. Encode Categorical Columns
-            # We use the loaded encoders to transform user input into the number the model expects
+            
+            # --- START OF ROBUST TRIMMING LOGIC ---
             
             # Check 1: Does the encoder exist?
             if 'State' not in encoders or 'Season' not in encoders:
                 st.error("The loaded 'all_encoders.joblib' file does not contain 'State' or 'Season' keys.")
                 st.stop()
-                
-            # Check 2: Transform
-            # .transform() expects a list, e.g. ['Punjab']
-            state_encoded = encoders['State'].transform([state_input])[0]
+            
+            # Check 2: Robust Matching for STATE
+            # Retrieve all valid states from the model
+            model_states = encoders['State'].classes_
+            
+            # Create a dictionary to map "clean" names to "exact model" names
+            # e.g. {"west bengal": "West Bengal "}
+            state_map = {s.strip().lower(): s for s in model_states}
+            
+            # Clean the user input
+            input_clean = state_input.strip().lower()
+            
+            if input_clean in state_map:
+                # Use the EXACT string the model expects
+                correct_state_name = state_map[input_clean]
+                state_encoded = encoders['State'].transform([correct_state_name])[0]
+            else:
+                st.error(f"❌ State Error: The state '{state_input}' (trimmed: '{input_clean}') was not found in the training data.")
+                st.write("Valid states known to the model:", model_states)
+                st.stop()
+
+            # Check 3: Robust Matching for SEASON
             season_encoded = encoders['Season'].transform([current_season])[0]
+            
+            # --- END OF ROBUST TRIMMING LOGIC ---
             
             # C. Create DataFrame
             # MUST match the exact column order used during training
@@ -276,7 +295,7 @@ if weather_df is not None and state_input in weather_df['State'].values:
             st.balloons()
 
         except ValueError as e:
-            st.error(f"Encoding Error: The state '{state_input}' was not found in the training data. Please check spelling.")
+            st.error(f"Encoding Error: {e}")
         except Exception as e:
             st.error(f"Prediction failed: {e}")
 
